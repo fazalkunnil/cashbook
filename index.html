@@ -1,0 +1,948 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Ain Vogue">
+<meta name="theme-color" content="#6b2d5c">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<title>Ain Vogue Cash Book</title>
+<style>
+:root{
+  --plum:#6b2d5c;--plum2:#8a3d77;--plumSoft:#f4e9f1;--gold:#c99a2e;
+  --bg:#faf6f8;--card:#ffffff;--ink:#231a20;--muted:#7a6d75;--line:#ece3e8;
+  --green:#1d7a4a;--greenSoft:#e5f4ec;--red:#b3261e;--redSoft:#fbe9e7;--blueSoft:#e8f0fb;--blue:#2457a6;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;font-size:16px}
+body{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+input,select,textarea{font:inherit;font-size:17px;color:var(--ink)}
+.top{position:sticky;top:0;z-index:5;background:var(--plum);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 12px;display:flex;align-items:center;gap:10px}
+.top h1{font-size:19px;margin:0;flex:1;font-weight:700;letter-spacing:.2px}
+.top .sub{font-size:12px;opacity:.8;font-weight:400;display:block}
+.top .ib{width:38px;height:38px;border-radius:19px;background:rgba(255,255,255,.15);color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center}
+main{padding:14px 16px 20px;max-width:560px;margin:0 auto}
+.card{background:var(--card);border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(60,20,50,.06);border:1px solid var(--line)}
+.card h3{margin:0 0 10px;font-size:15px;color:var(--plum);font-weight:700}
+.muted{color:var(--muted);font-size:13px}
+.bal{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+.bal>div{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 8px;text-align:center}
+.bal .l{font-size:12px;color:var(--muted)}
+.bal .v{font-size:16px;font-weight:700;margin-top:4px;word-break:break-all}
+.bal .ic{font-size:20px}
+.row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);gap:10px}
+.row:last-child{border-bottom:0}
+.row .r{font-weight:600;white-space:nowrap}
+.row.tot{font-weight:700;font-size:17px}
+.big{display:block;width:100%;padding:16px;border-radius:14px;background:var(--plum);color:#fff;font-weight:700;font-size:17px;text-align:center;margin-bottom:10px}
+.big.alt{background:var(--card);color:var(--plum);border:2px solid var(--plum)}
+.big.green{background:var(--green)}
+.big.red{background:var(--red)}
+.big.small{padding:12px;font-size:15px}
+.btn2{display:flex;gap:8px}.btn2 .big{flex:1}
+label.f{display:block;margin:12px 0 5px;font-size:14px;font-weight:600;color:#4a3d45}
+.in{width:100%;padding:13px 12px;border:1.5px solid #dccfd7;border-radius:12px;background:#fff;appearance:none;-webkit-appearance:none}
+.in:focus{outline:none;border-color:var(--plum)}
+.amt{font-size:24px;font-weight:700;text-align:right}
+.hint{font-size:12.5px;color:var(--muted);margin-top:4px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{flex:1;min-width:90px;padding:12px 8px;border-radius:12px;border:1.5px solid #dccfd7;background:#fff;text-align:center;font-weight:600;font-size:15px}
+.chip.on{background:var(--plum);border-color:var(--plum);color:#fff}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 10px;text-align:left;display:flex;gap:10px;align-items:center;font-weight:600;font-size:14.5px;line-height:1.2}
+.tile .e{font-size:24px}
+.sec{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:16px 2px 8px}
+.pill{display:inline-block;padding:3px 9px;border-radius:20px;font-size:12px;font-weight:700}
+.pill.g{background:var(--greenSoft);color:var(--green)}.pill.r{background:var(--redSoft);color:var(--red)}.pill.b{background:var(--blueSoft);color:var(--blue)}.pill.p{background:var(--plumSoft);color:var(--plum)}
+.pos{color:var(--green)}.neg{color:var(--red)}
+.calc{background:var(--plumSoft);border-radius:14px;padding:12px 14px;margin-top:12px}
+.calc .row{border-color:#e5d3df}
+.item{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
+.item:last-child{border-bottom:0}
+.item .t{flex:1;min-width:0}
+.item .t b{display:block;font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.item .t span{font-size:12.5px;color:var(--muted)}
+.item .a{font-weight:700;white-space:nowrap}
+.x{width:32px;height:32px;border-radius:16px;background:var(--redSoft);color:var(--red);font-weight:700;flex:none}
+.addrow{display:flex;gap:8px;margin-top:10px}
+.addrow select{flex:1.3}.addrow input{flex:1}
+.addrow button{flex:none;padding:0 16px;border-radius:12px;background:var(--plum);color:#fff;font-weight:700}
+.seg{display:flex;background:#eadde5;border-radius:12px;padding:3px;margin-bottom:12px}
+.seg button{flex:1;padding:10px;border-radius:10px;font-weight:600;color:var(--muted)}
+.seg button.on{background:#fff;color:var(--plum);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.banner{background:#fff6e0;border:1px solid #f0d78c;color:#6a4c00;border-radius:14px;padding:12px 14px;margin-bottom:12px;font-size:14px}
+.banner.red{background:var(--redSoft);border-color:#efb8b2;color:var(--red)}
+.nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);display:flex;padding:6px 4px calc(6px + env(safe-area-inset-bottom));z-index:6}
+.nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--muted);padding:4px 0}
+.nav button .e{font-size:22px;filter:grayscale(1);opacity:.6}
+.nav button.on{color:var(--plum);font-weight:700}
+.nav button.on .e{filter:none;opacity:1}
+.nav .plus .e{background:var(--plum);color:#fff;width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;filter:none;opacity:1;margin-top:-18px;box-shadow:0 3px 8px rgba(107,45,92,.4);font-size:26px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(100px + env(safe-area-inset-bottom));background:#231a20;color:#fff;padding:12px 18px;border-radius:24px;font-size:15px;z-index:50;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90%;text-align:center}
+.toast.show{opacity:1}
+.modalbg{position:fixed;inset:0;background:rgba(30,10,25,.45);z-index:40;display:flex;align-items:flex-end;justify-content:center}
+.modal{background:#fff;width:100%;max-width:560px;border-radius:20px 20px 0 0;padding:20px 16px calc(20px + env(safe-area-inset-bottom));max-height:88vh;overflow:auto}
+.modal h2{margin:0 0 8px;font-size:19px}
+.modal p{margin:6px 0 14px;color:#4a3d45;line-height:1.45}
+/* PIN */
+.pin{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--plum);color:#fff;padding:30px 20px calc(30px + env(safe-area-inset-bottom));margin-bottom:calc(-84px - env(safe-area-inset-bottom))}
+.pin .logo{width:74px;height:74px;border-radius:18px;background:#f3d27a;color:var(--plum);font:700 30px Georgia,serif;display:flex;align-items:center;justify-content:center;margin-bottom:12px}
+.pin h2{margin:0;font-size:22px}
+.pin .msg{margin:8px 0 22px;opacity:.9;min-height:22px;text-align:center}
+.dots{display:flex;gap:18px;margin-bottom:30px}
+.dots i{width:16px;height:16px;border-radius:8px;border:2px solid #fff}
+.dots i.on{background:#fff}
+.dots.shake{animation:sh .4s}
+@keyframes sh{20%,60%{transform:translateX(-10px)}40%,80%{transform:translateX(10px)}}
+.pad{display:grid;grid-template-columns:repeat(3,76px);gap:16px}
+.pad button{width:76px;height:76px;border-radius:38px;background:rgba(255,255,255,.14);color:#fff;font-size:28px;font-weight:500}
+.pad button.blank{background:none}
+.pin .link{margin-top:24px;color:#fff;opacity:.8;text-decoration:underline;font-size:14px}
+.empty{text-align:center;color:var(--muted);padding:18px 6px;font-size:14px}
+.warn{color:var(--red);font-size:13px;margin-top:6px}
+.preview{background:#231a20;color:#fff;font-size:12.5px;text-align:center;padding:6px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+<input type="file" id="restoreFile" accept=".json,application/json,text/plain" style="display:none">
+
+<script>
+/* =========================================================
+   Ain Vogue Cash Book — all data stays on this phone
+   ========================================================= */
+const KEY = 'ainvogue_cashbook_v1';
+const app = document.getElementById('app');
+
+/* ---------- helpers ---------- */
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const pad2 = n => String(n).padStart(2, '0');
+const dstr = d => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+const today = () => dstr(new Date());
+const thisMonth = () => today().slice(0, 7);
+const num = v => { const n = parseFloat(String(v ?? '').replace(/[,₹\s]/g, '')); return isFinite(n) ? Math.round(n * 100) / 100 : 0; };
+const r2 = n => Math.round(n * 100) / 100;
+const inr = n => { n = r2(n || 0); return (n < 0 ? '-' : '') + '₹' + Math.abs(n).toLocaleString('en-IN', { maximumFractionDigits: 2 }); };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmtD = d => { if (!d) return ''; const [y, m, dd] = d.split('-'); return new Date(y, m - 1, dd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); };
+const fmtDshort = d => { const [y, m, dd] = d.split('-'); return new Date(y, m - 1, dd).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }); };
+const monthName = m => { if (m === 'all') return 'All time'; const [y, mm] = m.split('-'); return new Date(y, mm - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }); };
+const sum = (arr, f) => r2(arr.reduce((a, x) => a + (f ? f(x) : x), 0));
+function hashPin(p) { let h = 5381; const s = 'ainvogue#' + p; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return 'h' + h.toString(36); }
+
+/* ---------- storage ---------- */
+let memCopy = null, PREVIEW = false;
+try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); } catch (e) { PREVIEW = true; }
+function load() { try { const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return memCopy; } }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { memCopy = JSON.parse(JSON.stringify(S)); } }
+if (navigator.storage && navigator.storage.persist) { try { navigator.storage.persist(); } catch (e) { } }
+
+function freshData() {
+  return {
+    v: 1, shop: 'Ain Vogue', pin: null, setup: false,
+    start: { date: today(), shop: 0, cash: 0, bank: 0, loan: 0 },
+    expenseTypes: ['Food Allowance', 'Cleaning', 'Tea / Snacks', 'Transport', 'Stationery', 'Repairs', 'Other'],
+    suppliers: [{ id: uid(), name: 'Sakshi', opening: 0 }],
+    staff: [{ id: uid(), name: 'Kebi', salary: 0 }, { id: uid(), name: 'Apri', salary: 0 }, { id: uid(), name: 'AJU', salary: 0 }],
+    days: {}, tx: [], commission: {}, lastBackup: null
+  };
+}
+let S = load() || freshData();
+
+/* ---------- money types ---------- */
+const ACC = { shop: 'Shop cash', cash: 'My cash', bank: 'Bank' };
+const ACC_IC = { shop: '🏪', cash: '👛', bank: '🏦' };
+const K = {
+  shop_exp:   { l: 'Shop expense',        g: 'out',  ic: '🧾', def: 'shop', exp: 1, cat: 1 },
+  cash_buy:   { l: 'Cash purchase',       g: 'out',  ic: '🛍️', def: 'cash', exp: 1, hint: 'Stock bought and paid immediately' },
+  sup_pay:    { l: 'Pay supplier',        g: 'out',  ic: '🤝', def: 'bank', sup: 1, hint: 'Payment towards credit supplier balance' },
+  credit_buy: { l: 'Credit purchase',     g: 'credit', ic: '📦', sup: 1, hint: 'Stock bought now, to pay later. No money moves.' },
+  advance:    { l: 'Salary advance',      g: 'out',  ic: '💵', def: 'shop', exp: 1, staff: 1 },
+  salary:     { l: 'Salary payment',      g: 'out',  ic: '👛', def: 'cash', exp: 1, staff: 1, hint: 'Balance salary paid' },
+  commission: { l: 'Commission payment',  g: 'out',  ic: '⭐', def: 'cash', exp: 1, staff: 1 },
+  rent:       { l: 'Rent',                g: 'out',  ic: '🏬', def: 'bank', exp: 1 },
+  electricity:{ l: 'Electricity',         g: 'out',  ic: '💡', def: 'bank', exp: 1 },
+  other_exp:  { l: 'Other expense',       g: 'out',  ic: '📝', def: 'cash', exp: 1, hint: 'Write what it was in the note' },
+  home:       { l: 'Taken for home',      g: 'out',  ic: '🏡', def: 'cash', hint: 'Money used for home / personal' },
+  loan_out:   { l: 'Loan repayment',      g: 'out',  ic: '🏦', def: 'bank' },
+  loan_in:    { l: 'Loan received',       g: 'in',   ic: '💰', def: 'bank' },
+  other_in:   { l: 'Other money received',g: 'in',   ic: '➕', def: 'cash' },
+  collect:    { l: 'Cash taken from shop',g: 'move', ic: '👜', from: 'shop', to: 'cash' },
+  deposit:    { l: 'Deposit cash in bank',g: 'move', ic: '⬆️', fromOpts: ['cash', 'shop'], to: 'bank' },
+  withdraw:   { l: 'Withdraw from bank',  g: 'move', ic: '⬇️', from: 'bank', to: 'cash' },
+};
+
+/* ---------- calculations ---------- */
+function ledger() {
+  const st = S.start;
+  const b = { shop: num(st.shop), cash: num(st.cash), bank: num(st.bank) };
+  const byDate = {};
+  S.tx.forEach(t => { (byDate[t.date] = byDate[t.date] || []).push(t); });
+  const dates = [...new Set([...Object.keys(S.days), ...Object.keys(byDate)])].filter(d => d >= st.date).sort();
+  const out = {};
+  for (const d of dates) {
+    const open = { ...b }; const day = S.days[d]; let adj = null, expected = null;
+    if (day) {
+      const cs = num(day.sales) - num(day.upi) - num(day.online);
+      b.shop += cs - num(day.taken); b.bank += num(day.upi) + num(day.online); b.cash += num(day.taken);
+    }
+    (byDate[d] || []).forEach(t => { if (t.from) b[t.from] -= num(t.amt); if (t.to) b[t.to] += num(t.amt); });
+    if (day && day.counted !== null && day.counted !== undefined && day.counted !== '') {
+      expected = r2(b.shop); adj = r2(num(day.counted) - b.shop); b.shop = num(day.counted);
+    }
+    Object.keys(b).forEach(k => b[k] = r2(b[k]));
+    out[d] = { open, close: { ...b }, adj, expected };
+  }
+  return { days: out, bal: { ...b } };
+}
+function openOn(L, d) {
+  let last = null;
+  for (const k of Object.keys(L.days)) { if (k < d && (!last || k > last)) last = k; }
+  return last ? L.days[last].close : { shop: num(S.start.shop), cash: num(S.start.cash), bank: num(S.start.bank) };
+}
+function supBal(s) {
+  let b = num(s.opening);
+  S.tx.forEach(t => { if (t.sup === s.id) { if (t.k === 'credit_buy') b += num(t.amt); if (t.k === 'sup_pay') b -= num(t.amt); } });
+  return r2(b);
+}
+function staffMonth(s, m) {
+  const com = num(S.commission[s.id + '|' + m]);
+  const txs = S.tx.filter(t => t.staff === s.id && t.month === m);
+  const adv = sum(txs.filter(t => t.k === 'advance'), t => num(t.amt));
+  const paid = sum(txs.filter(t => t.k === 'salary'), t => num(t.amt));
+  const comPaid = sum(txs.filter(t => t.k === 'commission'), t => num(t.amt));
+  const total = r2(num(s.salary) + com);
+  return { com, adv, paid, comPaid, total, given: r2(adv + paid + comPaid), due: r2(total - adv - paid - comPaid), txs };
+}
+function loanBal() { return r2(num(S.start.loan) + sum(S.tx.filter(t => t.k === 'loan_in'), t => num(t.amt)) - sum(S.tx.filter(t => t.k === 'loan_out'), t => num(t.amt))); }
+function txLabel(t) {
+  let s = t.k === 'shop_exp' ? (t.cat || 'Shop expense') : K[t.k].l;
+  if (t.sup) { const x = S.suppliers.find(z => z.id === t.sup); if (x) s += ' · ' + x.name; }
+  if (t.staff) { const x = S.staff.find(z => z.id === t.staff); if (x) s += ' · ' + x.name; }
+  return s;
+}
+function txFlow(t) {
+  if (t.k === 'credit_buy') return 'To pay later';
+  if (t.from && t.to) return ACC[t.from] + ' → ' + ACC[t.to];
+  if (t.from) return 'From ' + ACC[t.from];
+  if (t.to) return 'Into ' + ACC[t.to];
+  return '';
+}
+function periodData(m) {
+  const inP = d => m === 'all' || d.startsWith(m);
+  const L = ledger();
+  const dayKeys = Object.keys(S.days).filter(inP).sort();
+  const days = dayKeys.map(d => S.days[d]);
+  const sales = sum(days, x => num(x.sales)), upi = sum(days, x => num(x.upi)), online = sum(days, x => num(x.online));
+  const taken = sum(days, x => num(x.taken));
+  const txs = S.tx.filter(t => inP(t.date));
+  const bizExp = {}, otherPay = {};
+  txs.forEach(t => {
+    const k = K[t.k]; if (k.g !== 'out') return;
+    const lab = t.k === 'shop_exp' ? (t.cat || 'Shop expense') : k.l;
+    const tgt = k.exp ? bizExp : otherPay;
+    tgt[lab] = r2((tgt[lab] || 0) + num(t.amt));
+  });
+  const moneyIn = {}; txs.filter(t => K[t.k].g === 'in').forEach(t => moneyIn[K[t.k].l] = r2((moneyIn[K[t.k].l] || 0) + num(t.amt)));
+  const creditBuy = sum(txs.filter(t => t.k === 'credit_buy'), t => num(t.amt));
+  const shortEx = sum(Object.keys(L.days).filter(inP), d => L.days[d].adj || 0);
+  return { L, dayKeys, sales, upi, online, cashSales: r2(sales - upi - online), taken, txs, bizExp, otherPay, moneyIn, creditBuy, shortEx,
+    bizTotal: sum(Object.values(bizExp)), otherTotal: sum(Object.values(otherPay)) };
+}
+
+/* ---------- UI plumbing ---------- */
+let V = { name: 'home', p: {} };
+let locked = true, pinMode = null, pinBuf = '', pinFirst = '', pinMsg = '';
+let curDay = today(), repMonth = thisMonth(), histMonth = thisMonth(), staffMonthSel = thisMonth(), peopleTab = 'sup';
+function go(name, p = {}) { V = { name, p }; render(); window.scrollTo(0, 0); }
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200); }
+function modal(html) { closeModal(); const d = document.createElement('div'); d.className = 'modalbg'; d.id = 'mbg'; d.innerHTML = '<div class="modal">' + html + '</div>'; d.addEventListener('click', e => { if (e.target === d) closeModal(); }); document.body.appendChild(d); }
+function closeModal() { const m = document.getElementById('mbg'); if (m) m.remove(); }
+function ask(title, msg, okLabel, okClass, cb) {
+  window._askCb = cb;
+  modal(`<h2>${esc(title)}</h2><p>${msg}</p><div class="btn2"><button class="big alt small" onclick="closeModal()">Cancel</button><button class="big small ${okClass || ''}" onclick="closeModal();window._askCb()">${esc(okLabel)}</button></div>`);
+}
+function topbar(title, sub, back) {
+  return `<div class="top">${back ? `<button class="ib" onclick="${back}">‹</button>` : ''}<h1>${esc(title)}${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</h1>${!back && S.setup ? `<button class="ib" onclick="go('settings')">⚙︎</button>` : ''}</div>`;
+}
+function navbar() {
+  const tabs = [['home', '🏠', 'Home'], ['day', '🏪', 'Shop Day'], ['add', '+', 'Add'], ['people', '👥', 'People'], ['reports', '📊', 'Reports']];
+  const cur = { supplier: 'people', staff: 'people', form: 'add', history: 'reports', settings: 'home' }[V.name] || V.name;
+  return `<nav class="nav">${tabs.map(([n, e, l]) => `<button class="${cur === n ? 'on' : ''} ${n === 'add' ? 'plus' : ''}" onclick="${n === 'day' ? "curDay=today();" : ''}go('${n}')"><span class="e">${e}</span>${l}</button>`).join('')}</nav>`;
+}
+function render() {
+  if (!S.pin) { if (!pinMode || pinMode === 'unlock') { pinMode = 'set'; pinMsg = 'Create a 4-digit PIN to protect the app'; } return renderPin(); }
+  if (locked) { if (pinMode !== 'unlock' && pinMode !== 'chkold') { pinMode = 'unlock'; pinMsg = 'Enter your PIN'; } return renderPin(); }
+  if (!S.setup) { app.innerHTML = (PREVIEW ? previewBar() : '') + vSetup(); return; }
+  const v = VIEWS[V.name] || VIEWS.home;
+  app.innerHTML = (PREVIEW ? previewBar() : '') + v(V.p) + navbar();
+  if (V.name === 'day') dayCalc(false);
+}
+function previewBar() { return `<div class="preview">Preview mode — data here is not kept. Install from your web link for real use.</div>`; }
+
+/* ---------- PIN ---------- */
+function renderPin() {
+  const titles = { set: 'Welcome to ' + S.shop, confirm: 'Confirm PIN', unlock: S.shop, chkold: 'Change PIN', newpin: 'New PIN', newconfirm: 'Confirm new PIN' };
+  app.innerHTML = `<div class="pin"><div class="logo">AV</div><h2>${esc(titles[pinMode] || S.shop)}</h2><div class="msg">${esc(pinMsg)}</div>
+  <div class="dots" id="dots">${[0, 1, 2, 3].map(i => `<i class="${i < pinBuf.length ? 'on' : ''}"></i>`).join('')}</div>
+  <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button onclick="pinKey('${n}')">${n}</button>`).join('')}
+  <button class="blank" ${['chkold', 'newpin', 'newconfirm'].includes(pinMode) ? `onclick="pinCancel()" style="font-size:15px"` : ''}>${['chkold', 'newpin', 'newconfirm'].includes(pinMode) ? 'Cancel' : ''}</button>
+  <button onclick="pinKey('0')">0</button><button class="blank" onclick="pinKey('del')">⌫</button></div>
+  ${pinMode === 'unlock' ? `<button class="link" onclick="forgotPin()">Forgot PIN?</button>` : ''}</div>`;
+}
+function pinKey(k) {
+  if (k === 'del') { pinBuf = pinBuf.slice(0, -1); return renderPin(); }
+  if (pinBuf.length >= 4) return;
+  pinBuf += k; renderPin();
+  if (pinBuf.length === 4) setTimeout(pinDone, 120);
+}
+function pinShake(msg) { pinMsg = msg; pinBuf = ''; renderPin(); const d = document.getElementById('dots'); d.classList.add('shake'); }
+function pinDone() {
+  const p = pinBuf;
+  if (pinMode === 'set' || pinMode === 'newpin') { pinFirst = p; pinBuf = ''; pinMode = pinMode === 'set' ? 'confirm' : 'newconfirm'; pinMsg = 'Enter the same PIN again'; return renderPin(); }
+  if (pinMode === 'confirm' || pinMode === 'newconfirm') {
+    if (p !== pinFirst) { pinMode = pinMode === 'confirm' ? 'set' : 'newpin'; return pinShake('PINs did not match. Try again.'); }
+    const wasChange = pinMode === 'newconfirm';
+    S.pin = hashPin(p); save(); pinBuf = ''; pinMode = null; locked = false;
+    if (wasChange) { go('settings'); toast('PIN changed'); } else render();
+    return;
+  }
+  if (pinMode === 'unlock') {
+    if (hashPin(p) === S.pin) { locked = false; pinBuf = ''; pinMode = null; render(); } else pinShake('Wrong PIN. Try again.');
+    return;
+  }
+  if (pinMode === 'chkold') {
+    if (hashPin(p) === S.pin) { pinBuf = ''; pinMode = 'newpin'; pinMsg = 'Enter your new 4-digit PIN'; renderPin(); } else pinShake('Wrong PIN');
+  }
+}
+function pinCancel() { pinBuf = ''; pinMode = null; locked = false; go('settings'); }
+function changePin() { locked = true; pinMode = 'chkold'; pinBuf = ''; pinMsg = 'Enter your current PIN'; renderPin(); }
+function forgotPin() {
+  modal(`<h2>Forgot PIN?</h2><p>For safety, the PIN cannot be recovered. The only way is to <b>erase all data on this phone</b> and start again. After that you can use <b>Restore from backup</b> in Settings to get your records back from your last backup file.</p>
+  <label class="f">Type ERASE to confirm</label><input class="in" id="eraseTxt" autocapitalize="characters">
+  <div class="btn2" style="margin-top:14px"><button class="big alt small" onclick="closeModal()">Cancel</button><button class="big red small" onclick="if(document.getElementById('eraseTxt').value.trim().toUpperCase()==='ERASE'){eraseAll()}else{toast('Type ERASE to confirm')}">Erase</button></div>`);
+}
+function eraseAll() { closeModal(); S = freshData(); save(); pinMode = null; pinBuf = ''; locked = true; render(); toast('All data erased'); }
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && S.pin && !locked) { locked = true; pinMode = null; pinBuf = ''; closeModal(); render(); }
+});
+
+/* ---------- Setup (first time) ---------- */
+function vSetup() {
+  return `${topbar('Starting figures', 'One-time setup')}
+  <main>
+  <div class="banner">Enter the money you have <b>today</b>, before you start using the app. You can change these later in Settings.</div>
+  <div class="card">
+    <label class="f">Shop name</label><input class="in" id="su_name" value="${esc(S.shop)}">
+    <label class="f">Start date</label><input class="in" type="date" id="su_date" value="${S.start.date}">
+    <label class="f">🏪 Cash in shop drawer now</label><input class="in amt" inputmode="decimal" id="su_shop" placeholder="0" value="${S.start.shop || ''}">
+    <label class="f">👛 Cash with me (in hand)</label><input class="in amt" inputmode="decimal" id="su_cash" placeholder="0" value="${S.start.cash || ''}">
+    <label class="f">🏦 Bank balance</label><input class="in amt" inputmode="decimal" id="su_bank" placeholder="0" value="${S.start.bank || ''}">
+    <label class="f">Loan still to repay (if any)</label><input class="in amt" inputmode="decimal" id="su_loan" placeholder="0" value="${S.start.loan || ''}">
+  </div>
+  <div class="card"><h3>Amount I owe to suppliers now</h3>
+    ${S.suppliers.map(s => `<label class="f">${esc(s.name)}</label><input class="in amt" inputmode="decimal" id="su_sup_${s.id}" placeholder="0" value="${s.opening || ''}">`).join('')}
+    <div class="hint">You can add more suppliers later in People.</div>
+  </div>
+  <div class="card"><h3>Staff monthly salary</h3>
+    ${S.staff.map(s => `<label class="f">${esc(s.name)}</label><input class="in amt" inputmode="decimal" id="su_st_${s.id}" placeholder="0" value="${s.salary || ''}">`).join('')}
+    <div class="hint">Commission is added month by month in People → Staff.</div>
+  </div>
+  <button class="big" onclick="saveSetup()">Start using the app</button>
+  </main>`;
+}
+function saveSetup() {
+  const g = id => document.getElementById(id).value;
+  S.shop = g('su_name').trim() || 'Ain Vogue';
+  S.start = { date: g('su_date') || today(), shop: num(g('su_shop')), cash: num(g('su_cash')), bank: num(g('su_bank')), loan: num(g('su_loan')) };
+  S.suppliers.forEach(s => { const el = document.getElementById('su_sup_' + s.id); if (el) s.opening = num(el.value); });
+  S.staff.forEach(s => { const el = document.getElementById('su_st_' + s.id); if (el) s.salary = num(el.value); });
+  S.setup = true; save(); go('home'); toast('All set! 🎉');
+}
+
+/* ---------- Views ---------- */
+const VIEWS = {};
+
+VIEWS.home = () => {
+  const L = ledger(), b = L.bal, t = today(), m = thisMonth();
+  const owed = sum(S.suppliers, supBal);
+  const salDue = sum(S.staff, s => Math.max(0, staffMonth(s, m).due));
+  const loan = loanBal();
+  const done = !!S.days[t];
+  const days = S.lastBackup ? Math.floor((Date.now() - S.lastBackup) / 86400000) : null;
+  const recent = [...S.tx].sort((a, b) => (b.date + b.ts).localeCompare(a.date + a.ts)).slice(0, 5);
+  return `${topbar(S.shop, fmtD(t))}
+  <main>
+  ${days === null || days >= 7 ? `<div class="banner">💾 ${days === null ? 'No backup yet.' : 'Last backup was ' + days + ' days ago.'} Your records are only on this phone. <a href="#" onclick="backup();return false" style="color:inherit;font-weight:700">Backup now</a></div>` : ''}
+  <div class="bal">
+    <div><div class="ic">🏪</div><div class="l">Shop cash</div><div class="v">${inr(b.shop)}</div></div>
+    <div><div class="ic">👛</div><div class="l">My cash</div><div class="v">${inr(b.cash)}</div></div>
+    <div><div class="ic">🏦</div><div class="l">Bank</div><div class="v">${inr(b.bank)}</div></div>
+  </div>
+  <div class="card">
+    <div class="row"><span>Total money (all 3)</span><span class="r">${inr(b.shop + b.cash + b.bank)}</span></div>
+    <div class="row" onclick="peopleTab='sup';go('people')"><span>I owe suppliers</span><span class="r neg">${inr(owed)} ›</span></div>
+    <div class="row" onclick="peopleTab='staff';staffMonthSel=thisMonth();go('people')"><span>Salary still to pay (${monthName(m).split(' ')[0]})</span><span class="r neg">${inr(salDue)} ›</span></div>
+    ${loan ? `<div class="row"><span>Loan to repay</span><span class="r neg">${inr(loan)}</span></div>` : ''}
+  </div>
+  <button class="big ${done ? 'alt' : ''}" onclick="curDay=today();go('day')">${done ? '✓ Today\'s shop entry done — view / edit' : '🏪 Today\'s Shop Entry'}</button>
+  <button class="big ${done ? '' : 'alt'}" onclick="go('add')">➕ Add Payment / Receipt</button>
+  <div class="sec">Recent entries</div>
+  <div class="card">${recent.length ? recent.map(txItem).join('') : '<div class="empty">No entries yet</div>'}
+  ${recent.length ? `<button class="big alt small" style="margin:10px 0 0" onclick="histMonth=thisMonth();go('history')">See all entries</button>` : ''}</div>
+  </main>`;
+};
+function txItem(t) {
+  const k = K[t.k]; const sign = k.g === 'in' ? '+' : k.g === 'out' ? '−' : '';
+  const cls = k.g === 'in' ? 'pos' : k.g === 'out' ? 'neg' : '';
+  return `<div class="item" onclick="go('form',{k:'${t.k}',id:'${t.id}'})"><div style="font-size:22px">${k.ic}</div><div class="t"><b>${esc(txLabel(t))}</b><span>${fmtDshort(t.date)} · ${esc(txFlow(t))}${t.note ? ' · ' + esc(t.note) : ''}</span></div><div class="a ${cls}">${sign}${inr(t.amt)}</div></div>`;
+}
+
+/* ----- Shop day ----- */
+VIEWS.day = () => {
+  const d = curDay; const day = S.days[d] || {};
+  const L = ledger(); const open = openOn(L, d).shop;
+  const shopTx = S.tx.filter(t => t.date === d && (t.from === 'shop' || t.to === 'shop'));
+  const exps = shopTx.filter(t => t.k === 'shop_exp');
+  const others = shopTx.filter(t => t.k !== 'shop_exp');
+  const v = x => (x === undefined || x === null || x === '') ? '' : x;
+  return `${topbar('Shop Day', d === today() ? 'Today · ' + fmtD(d) : fmtD(d))}
+  <main>
+  <div class="card">
+    <label class="f" style="margin-top:0">Date</label>
+    <input class="in" type="date" value="${d}" min="${S.start.date}" max="${today()}" onchange="if(this.value){curDay=this.value;render()}">
+  </div>
+  <div class="card">
+    <div class="row"><span>🔓 Opening cash in drawer</span><span class="r">${inr(open)}</span></div>
+    <div class="hint">Carried from the previous day's closing cash.</div>
+  </div>
+  <div class="card"><h3>1. Sales (from POS)</h3>
+    <label class="f">Total sales</label><input class="in amt" inputmode="decimal" id="d_sales" placeholder="0" value="${v(day.sales)}" oninput="dayCalc(true)">
+    <label class="f">UPI received</label><input class="in amt" inputmode="decimal" id="d_upi" placeholder="0" value="${v(day.upi)}" oninput="dayCalc(true)">
+    <label class="f">Online sales received</label><input class="in amt" inputmode="decimal" id="d_online" placeholder="0" value="${v(day.online)}" oninput="dayCalc(true)">
+    <div class="calc"><div class="row"><span>Cash sales</span><span class="r" id="c_cash">₹0</span></div>
+    <div class="hint">= Total − UPI − Online. UPI &amp; Online go to Bank automatically.</div></div>
+    <div class="warn" id="c_warn" style="display:none">UPI + Online is more than total sales. Please check.</div>
+  </div>
+  <div class="card"><h3>2. Expenses paid from shop cash</h3>
+    ${exps.length ? exps.map(t => `<div class="item"><div class="t"><b>${esc(t.cat || 'Shop expense')}</b>${t.note ? `<span>${esc(t.note)}</span>` : ''}</div><div class="a">${inr(t.amt)}</div><button class="x" onclick="delTx('${t.id}')">×</button></div>`).join('') : '<div class="muted">No expenses added yet.</div>'}
+    <div class="addrow">
+      <select class="in" id="e_cat" onchange="if(this.value==='__new')newExpType('day')">${S.expenseTypes.map(c => `<option>${esc(c)}</option>`).join('')}<option value="__new">➕ New type…</option></select>
+      <input class="in" inputmode="decimal" id="e_amt" placeholder="₹ Amount">
+      <button onclick="addDayExp()">Add</button>
+    </div>
+    ${others.length ? `<div class="sec" style="margin-top:14px">Other shop cash movements today</div>${others.map(txItem).join('')}` : ''}
+  </div>
+  <div class="card"><h3>3. Cash I took from shop</h3>
+    <input class="in amt" inputmode="decimal" id="d_taken" placeholder="0" value="${v(day.taken)}" oninput="dayCalc(true)">
+    <div class="hint">This moves to "My cash".</div>
+  </div>
+  <div class="card"><h3>4. Closing cash</h3>
+    <div class="calc" style="margin-top:0">
+      <div class="row"><span>Opening cash</span><span class="r">${inr(open)}</span></div>
+      <div class="row"><span>+ Cash sales</span><span class="r" id="c_cash2">₹0</span></div>
+      <div class="row"><span>− Shop expenses &amp; payments</span><span class="r" id="c_exp">₹0</span></div>
+      <div class="row"><span>− Cash I took</span><span class="r" id="c_taken">₹0</span></div>
+      <div class="row tot"><span>Cash that should be in drawer</span><span class="r" id="c_expected">₹0</span></div>
+    </div>
+    <label class="f">Actual cash counted in drawer</label>
+    <input class="in amt" inputmode="decimal" id="d_counted" placeholder="Count and type here" value="${v(day.counted)}" oninput="dayCalc(true)">
+    <div id="c_diff" style="margin-top:10px"></div>
+    <label class="f">Note (optional)</label><input class="in" id="d_note" value="${esc(day.note || '')}" oninput="dayCalc(true)">
+  </div>
+  <div id="c_saved" class="muted" style="text-align:center;margin-bottom:8px">${S.days[d] ? '✓ Saved' : 'Everything saves automatically as you type'}</div>
+  <button class="big" onclick="dayDone()">Done</button>
+  ${S.days[d] ? `<button class="big alt small" onclick="delDay()">Clear this day's sales entry</button>` : ''}
+  </main>`;
+};
+function dayVals() {
+  const g = id => document.getElementById(id).value;
+  return { sales: g('d_sales'), upi: g('d_upi'), online: g('d_online'), taken: g('d_taken'), counted: g('d_counted'), note: g('d_note') };
+}
+function dayCalc(doSave) {
+  const d = curDay; const f = dayVals();
+  const open = openOn(ledger(), d).shop;
+  const cash = r2(num(f.sales) - num(f.upi) - num(f.online));
+  const shopTx = S.tx.filter(t => t.date === d && (t.from === 'shop' || t.to === 'shop'));
+  const out = r2(sum(shopTx.filter(t => t.from === 'shop'), t => num(t.amt)) - sum(shopTx.filter(t => t.to === 'shop'), t => num(t.amt)));
+  const taken = num(f.taken);
+  const expected = r2(open + cash - out - taken);
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('c_cash', inr(cash)); set('c_cash2', inr(cash)); set('c_exp', inr(out)); set('c_taken', inr(taken)); set('c_expected', inr(expected));
+  document.getElementById('c_warn').style.display = cash < 0 ? 'block' : 'none';
+  const dEl = document.getElementById('c_diff');
+  if (f.counted.trim() === '') dEl.innerHTML = '<div class="hint">Count the cash at closing time and enter it to check for shortage.</div>';
+  else {
+    const diff = r2(num(f.counted) - expected);
+    dEl.innerHTML = diff === 0 ? '<span class="pill g">✓ Cash matches</span>' :
+      diff < 0 ? `<span class="pill r">Short by ${inr(-diff)}</span><div class="hint">Tomorrow's opening will use the counted cash.</div>` :
+        `<span class="pill b">Extra ${inr(diff)}</span><div class="hint">Tomorrow's opening will use the counted cash.</div>`;
+  }
+  if (doSave) {
+    const hasAny = ['sales', 'upi', 'online', 'taken', 'counted', 'note'].some(k => String(f[k]).trim() !== '');
+    if (hasAny) S.days[d] = { sales: num(f.sales), upi: num(f.upi), online: num(f.online), taken: num(f.taken), counted: f.counted.trim() === '' ? null : num(f.counted), note: f.note.trim() };
+    else delete S.days[d];
+    save(); set('c_saved', hasAny ? '✓ Saved' : 'Everything saves automatically as you type');
+  }
+}
+function addDayExp() {
+  const cat = document.getElementById('e_cat').value; const amt = num(document.getElementById('e_amt').value);
+  if (cat === '__new') return newExpType('day');
+  if (amt <= 0) return toast('Enter the amount');
+  dayCalc(true);
+  S.tx.push({ id: uid(), ts: Date.now().toString(36), date: curDay, k: 'shop_exp', amt, from: 'shop', cat, note: '' });
+  save(); render(); toast('Expense added');
+}
+function dayDone() { dayCalc(true); go('home'); toast(S.days[curDay] ? 'Shop day saved ✓' : 'Nothing entered'); }
+function delDay() { ask('Clear sales entry?', 'This removes the sales, cash taken and counted cash for ' + fmtD(curDay) + '. Expenses stay.', 'Clear', 'red', () => { delete S.days[curDay]; save(); render(); toast('Cleared'); }); }
+function delTx(id) { const t = S.tx.find(x => x.id === id); ask('Delete entry?', esc(txLabel(t)) + ' — ' + inr(t.amt), 'Delete', 'red', () => { S.tx = S.tx.filter(x => x.id !== id); save(); render(); toast('Deleted'); }); }
+function newExpType(from) {
+  window._netFrom = from;
+  modal(`<h2>New expense type</h2><input class="in" id="net" placeholder="e.g. Packing material"><div class="btn2" style="margin-top:14px"><button class="big alt small" onclick="closeModal();render()">Cancel</button><button class="big small" onclick="saveExpType()">Add</button></div>`);
+  setTimeout(() => document.getElementById('net').focus(), 50);
+}
+function saveExpType() {
+  const v = document.getElementById('net').value.trim(); if (!v) return toast('Type a name');
+  if (!S.expenseTypes.includes(v)) S.expenseTypes.splice(Math.max(0, S.expenseTypes.length - 1), 0, v);
+  save(); closeModal();
+  if (window._netFrom === 'day') { dayCalc(true); render(); const s = document.getElementById('e_cat'); if (s) s.value = v; }
+  else if (window._netFrom === 'form') { const s = document.getElementById('f_cat'); if (s) { s.innerHTML = catOptions(v); } }
+  else render();
+}
+function catOptions(sel) { return S.expenseTypes.map(c => `<option ${c === sel ? 'selected' : ''}>${esc(c)}</option>`).join('') + '<option value="__new">➕ New type…</option>'; }
+
+/* ----- Add menu ----- */
+VIEWS.add = () => {
+  const tile = k => `<button class="tile" onclick="go('form',{k:'${k}'})"><span class="e">${K[k].ic}</span>${K[k].l}</button>`;
+  return `${topbar('Add Payment / Receipt', 'What happened?')}
+  <main>
+  <div class="sec">Money going out</div>
+  <div class="tiles">${['sup_pay', 'cash_buy', 'advance', 'salary', 'commission', 'rent', 'electricity', 'shop_exp', 'other_exp', 'home', 'loan_out'].map(tile).join('')}</div>
+  <div class="sec">Money coming in</div>
+  <div class="tiles">${['loan_in', 'other_in'].map(tile).join('')}</div>
+  <div class="sec">Moving my money</div>
+  <div class="tiles">${['collect', 'deposit', 'withdraw'].map(tile).join('')}</div>
+  <div class="sec">Supplier (no money paid)</div>
+  <div class="tiles">${tile('credit_buy')}</div>
+  </main>`;
+};
+
+/* ----- Entry form ----- */
+let F = {};
+VIEWS.form = (p) => {
+  const k = K[p.k]; const t = p.id ? S.tx.find(x => x.id === p.id) : null;
+  if (p.id && !t) return VIEWS.home();
+  F = t ? { ...t } : { k: p.k, date: p.date || today(), amt: '', from: k.from || (k.fromOpts ? k.fromOpts[0] : k.g === 'out' ? k.def : null), to: k.to || (k.g === 'in' ? k.def : null), sup: p.sup || (k.sup && S.suppliers[0] ? S.suppliers[0].id : null), staff: p.staff || (k.staff && S.staff[0] ? S.staff[0].id : null), month: thisMonth(), cat: k.cat ? S.expenseTypes[0] : null, note: '' };
+  const chips = (field, opts) => `<div class="chips">${opts.map(a => `<button class="chip ${F[field] === a ? 'on' : ''}" onclick="F.${field}='${a}';this.parentNode.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));this.classList.add('on')">${ACC_IC[a]} ${ACC[a]}</button>`).join('')}</div>`;
+  let extra = '';
+  if (k.sup) extra += S.suppliers.length ? `<label class="f">Supplier</label><select class="in" id="f_sup">${S.suppliers.map(s => `<option value="${s.id}" ${F.sup === s.id ? 'selected' : ''}>${esc(s.name)} (owe ${inr(supBal(s))})</option>`).join('')}</select>` : `<div class="warn">Add a supplier first in People → Suppliers.</div>`;
+  if (k.staff) extra += S.staff.length ? `<label class="f">Staff</label><select class="in" id="f_staff">${S.staff.map(s => `<option value="${s.id}" ${F.staff === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
+    <label class="f">For which month's salary?</label><input class="in" type="month" id="f_month" value="${F.month || thisMonth()}">` : `<div class="warn">Add staff first in People → Staff.</div>`;
+  if (k.cat) extra += `<label class="f">Expense type</label><select class="in" id="f_cat" onchange="if(this.value==='__new')newExpType('form')">${catOptions(F.cat)}</select>`;
+  let flow = '';
+  if (k.g === 'out') flow = `<label class="f">Paid from</label>${chips('from', ['shop', 'cash', 'bank'])}`;
+  if (k.g === 'in') flow = `<label class="f">Received into</label>${chips('to', ['cash', 'bank', 'shop'])}`;
+  if (k.fromOpts) flow = `<label class="f">Cash from</label>${chips('from', k.fromOpts)}`;
+  if (k.from && k.to) flow = `<div class="calc">${ACC_IC[k.from]} ${ACC[k.from]} → ${ACC_IC[k.to]} ${ACC[k.to]}</div>`;
+  const backJs = p.back === 'supplier' ? `go('supplier',{id:'${F.sup}'})` : p.back === 'staff' ? `go('staff',{id:'${F.staff}'})` : t ? "go('history')" : "go('add')";
+  return `${topbar((t ? 'Edit: ' : '') + k.l, k.hint || '', backJs)}
+  <main><div class="card">
+    <label class="f" style="margin-top:0">Amount (₹)</label>
+    <input class="in amt" inputmode="decimal" id="f_amt" placeholder="0" value="${F.amt}">
+    ${extra}
+    ${flow}
+    <label class="f">Date</label><input class="in" type="date" id="f_date" value="${F.date}" min="${S.start.date}">
+    <label class="f">Note (optional)</label><input class="in" id="f_note" value="${esc(F.note || '')}" placeholder="${p.k === 'other_exp' ? 'What was it for?' : ''}">
+  </div>
+  <button class="big" onclick="saveForm()">Save</button>
+  ${t ? `<button class="big red small" onclick="delTx('${t.id}');">Delete this entry</button>` : ''}
+  </main>`;
+};
+function saveForm() {
+  const g = id => { const el = document.getElementById(id); return el ? el.value : null; };
+  const k = K[F.k];
+  const amt = num(g('f_amt')); if (amt <= 0) return toast('Enter the amount');
+  const date = g('f_date'); if (!date) return toast('Choose the date');
+  if (date < S.start.date) return toast('Date is before the start date');
+  const t = { id: F.id || uid(), ts: F.ts || Date.now().toString(36), date, k: F.k, amt, note: (g('f_note') || '').trim() };
+  if (k.g === 'out' || k.fromOpts || k.from) t.from = k.from || F.from;
+  if (k.g === 'in' || k.to) t.to = k.to || F.to;
+  if (k.sup) { t.sup = g('f_sup'); if (!t.sup) return toast('Choose a supplier'); }
+  if (k.staff) { t.staff = g('f_staff'); t.month = g('f_month') || thisMonth(); if (!t.staff) return toast('Choose staff'); }
+  if (k.cat) { t.cat = g('f_cat'); if (t.cat === '__new') return toast('Choose expense type'); }
+  const i = S.tx.findIndex(x => x.id === t.id);
+  if (i >= 0) S.tx[i] = t; else S.tx.push(t);
+  save(); const wasEdit = i >= 0;
+  if (V.p.back === 'supplier') go('supplier', { id: t.sup });
+  else if (V.p.back === 'staff') go('staff', { id: t.staff });
+  else go(wasEdit ? 'history' : 'home');
+  const dd = S.days[t.date];
+  if ((t.from === 'shop' || t.to === 'shop') && dd && dd.counted !== null && dd.counted !== undefined) toast('Saved ✓ — shop cash was already counted that day. Please re-check the count.');
+  else toast(wasEdit ? 'Updated ✓' : 'Saved ✓');
+}
+
+/* ----- People ----- */
+VIEWS.people = () => {
+  let body = '';
+  if (peopleTab === 'sup') {
+    body = `<div class="card">${S.suppliers.length ? S.suppliers.map(s => { const b = supBal(s); return `<div class="item" onclick="go('supplier',{id:'${s.id}'})"><div style="font-size:22px">🤝</div><div class="t"><b>${esc(s.name)}</b><span>${b > 0 ? 'I owe' : b < 0 ? 'Paid extra (advance)' : 'Nothing due'}</span></div><div class="a ${b > 0 ? 'neg' : ''}">${inr(Math.abs(b))} ›</div></div>`; }).join('') : '<div class="empty">No suppliers yet</div>'}
+      <div class="row tot" style="margin-top:6px"><span>Total I owe</span><span class="r neg">${inr(sum(S.suppliers, supBal))}</span></div></div>
+      <button class="big alt" onclick="editSupplier()">➕ Add supplier</button>`;
+  } else {
+    const m = staffMonthSel;
+    body = `<div class="card"><label class="f" style="margin-top:0">Month</label><input class="in" type="month" value="${m}" onchange="if(this.value){staffMonthSel=this.value;render()}"></div>
+    ${S.staff.map(s => { const x = staffMonth(s, m); return `<div class="card" onclick="go('staff',{id:'${s.id}'})">
+      <h3 style="display:flex;justify-content:space-between">${esc(s.name)}<span class="${x.due > 0 ? 'neg' : 'pos'}">${x.due > 0 ? 'To pay ' + inr(x.due) : x.due < 0 ? 'Overpaid ' + inr(-x.due) : 'Fully paid ✓'}</span></h3>
+      <div class="row"><span class="muted">Salary + Commission</span><span>${inr(s.salary)} + ${inr(x.com)} = <b>${inr(x.total)}</b></span></div>
+      <div class="row"><span class="muted">Given (advance + salary + commission)</span><span><b>${inr(x.given)}</b> ›</span></div></div>`; }).join('') || '<div class="card empty">No staff yet</div>'}
+    <div class="card"><div class="row tot"><span>Total still to pay</span><span class="r neg">${inr(sum(S.staff, s => Math.max(0, staffMonth(s, m).due)))}</span></div></div>
+    <button class="big alt" onclick="editStaff()">➕ Add staff</button>`;
+  }
+  return `${topbar('People', peopleTab === 'sup' ? 'Credit suppliers' : 'Staff salary')}
+  <main><div class="seg"><button class="${peopleTab === 'sup' ? 'on' : ''}" onclick="peopleTab='sup';render()">Suppliers</button><button class="${peopleTab === 'staff' ? 'on' : ''}" onclick="peopleTab='staff';render()">Staff</button></div>${body}</main>`;
+};
+VIEWS.supplier = (p) => {
+  const s = S.suppliers.find(x => x.id === p.id); if (!s) return VIEWS.people();
+  const txs = S.tx.filter(t => t.sup === s.id).sort((a, b) => (a.date + a.ts).localeCompare(b.date + b.ts));
+  let run = num(s.opening);
+  const rows = txs.map(t => { run = r2(run + (t.k === 'credit_buy' ? num(t.amt) : -num(t.amt))); return { t, run }; }).reverse();
+  return `${topbar(s.name, 'Supplier', "peopleTab='sup';go('people')")}
+  <main>
+  <div class="card" style="text-align:center"><div class="muted">I owe ${esc(s.name)}</div><div style="font-size:30px;font-weight:800;margin-top:4px" class="${supBal(s) > 0 ? 'neg' : ''}">${inr(supBal(s))}</div></div>
+  <div class="btn2"><button class="big alt small" onclick="go('form',{k:'credit_buy',sup:'${s.id}',back:'supplier'})">📦 Credit purchase</button><button class="big small" onclick="go('form',{k:'sup_pay',sup:'${s.id}',back:'supplier'})">🤝 Pay</button></div>
+  <div class="sec">History</div>
+  <div class="card">
+    ${rows.map(({ t, run }) => `<div class="item" onclick="go('form',{k:'${t.k}',id:'${t.id}',back:'supplier'})"><div style="font-size:20px">${K[t.k].ic}</div><div class="t"><b>${t.k === 'credit_buy' ? 'Purchase on credit' : 'Paid (' + ACC[t.from] + ')'}</b><span>${fmtD(t.date)}${t.note ? ' · ' + esc(t.note) : ''} · Balance ${inr(run)}</span></div><div class="a ${t.k === 'credit_buy' ? 'neg' : 'pos'}">${t.k === 'credit_buy' ? '+' : '−'}${inr(t.amt)}</div></div>`).join('')}
+    <div class="item"><div style="font-size:20px">📌</div><div class="t"><b>Starting balance</b><span>${fmtD(S.start.date)}</span></div><div class="a">${inr(s.opening)}</div></div>
+  </div>
+  <button class="big alt small" onclick="editSupplier('${s.id}')">Edit supplier</button>
+  </main>`;
+};
+function editSupplier(id) {
+  const s = id ? S.suppliers.find(x => x.id === id) : { name: '', opening: '' };
+  const used = id && S.tx.some(t => t.sup === id);
+  modal(`<h2>${id ? 'Edit supplier' : 'Add supplier'}</h2>
+  <label class="f">Name</label><input class="in" id="m_name" value="${esc(s.name)}">
+  <label class="f">Amount owed on start date (${fmtD(S.start.date)})</label><input class="in amt" inputmode="decimal" id="m_open" value="${s.opening || ''}" placeholder="0">
+  <div class="btn2" style="margin-top:14px"><button class="big alt small" onclick="closeModal()">Cancel</button><button class="big small" onclick="saveSupplier('${id || ''}')">Save</button></div>
+  ${id && !used ? `<button class="big red small" onclick="S.suppliers=S.suppliers.filter(x=>x.id!=='${id}');save();closeModal();peopleTab='sup';go('people')">Delete supplier</button>` : ''}`);
+}
+function saveSupplier(id) {
+  const name = document.getElementById('m_name').value.trim(); if (!name) return toast('Enter name');
+  const opening = num(document.getElementById('m_open').value);
+  if (id) Object.assign(S.suppliers.find(x => x.id === id), { name, opening }); else S.suppliers.push({ id: uid(), name, opening });
+  save(); closeModal(); render(); toast('Saved');
+}
+VIEWS.staff = (p) => {
+  const s = S.staff.find(x => x.id === p.id); if (!s) return VIEWS.people();
+  const m = staffMonthSel; const x = staffMonth(s, m);
+  const txs = [...x.txs].sort((a, b) => (b.date + b.ts).localeCompare(a.date + a.ts));
+  return `${topbar(s.name, 'Staff · ' + monthName(m), "peopleTab='staff';go('people')")}
+  <main>
+  <div class="card"><label class="f" style="margin-top:0">Month</label><input class="in" type="month" value="${m}" onchange="if(this.value){staffMonthSel=this.value;render()}"></div>
+  <div class="card">
+    <div class="row"><span>Monthly salary</span><span class="r">${inr(s.salary)}</span></div>
+    <div class="row"><span>+ Sales commission this month</span><span style="width:130px"><input class="in" style="text-align:right;padding:8px 10px" inputmode="decimal" value="${x.com || ''}" placeholder="0" onchange="S.commission['${s.id}|${m}']=num(this.value);save();render()"></span></div>
+    <div class="row tot"><span>Total earned</span><span class="r">${inr(x.total)}</span></div>
+    <div class="row"><span>− Advances given</span><span class="r">${inr(x.adv)}</span></div>
+    <div class="row"><span>− Salary paid</span><span class="r">${inr(x.paid)}</span></div>
+    ${x.comPaid ? `<div class="row"><span>− Commission paid</span><span class="r">${inr(x.comPaid)}</span></div>` : ''}
+    <div class="row tot"><span>${x.due >= 0 ? 'Balance to pay' : 'Overpaid'}</span><span class="r ${x.due > 0 ? 'neg' : 'pos'}">${inr(Math.abs(x.due))}</span></div>
+  </div>
+  <div class="btn2"><button class="big alt small" onclick="go('form',{k:'advance',staff:'${s.id}',back:'staff'})">💵 Give advance</button><button class="big small" onclick="payBalance('${s.id}')">👛 Pay balance</button></div>
+  <div class="sec">Payments for ${monthName(m)}</div>
+  <div class="card">${txs.length ? txs.map(t => `<div class="item" onclick="go('form',{k:'${t.k}',id:'${t.id}',back:'staff'})"><div style="font-size:20px">${K[t.k].ic}</div><div class="t"><b>${K[t.k].l}</b><span>${fmtD(t.date)} · ${ACC[t.from]}${t.note ? ' · ' + esc(t.note) : ''}</span></div><div class="a">${inr(t.amt)}</div></div>`).join('') : '<div class="empty">No payments this month</div>'}</div>
+  <button class="big alt small" onclick="editStaff('${s.id}')">Edit ${esc(s.name)}</button>
+  </main>`;
+};
+function payBalance(id) {
+  const s = S.staff.find(x => x.id === id); const x = staffMonth(s, staffMonthSel);
+  go('form', { k: 'salary', staff: id, back: 'staff' });
+  const a = document.getElementById('f_amt'); if (a && x.due > 0) a.value = x.due;
+  const mo = document.getElementById('f_month'); if (mo) mo.value = staffMonthSel;
+}
+function editStaff(id) {
+  const s = id ? S.staff.find(x => x.id === id) : { name: '', salary: '' };
+  const used = id && S.tx.some(t => t.staff === id);
+  modal(`<h2>${id ? 'Edit staff' : 'Add staff'}</h2>
+  <label class="f">Name</label><input class="in" id="m_name" value="${esc(s.name)}">
+  <label class="f">Monthly salary</label><input class="in amt" inputmode="decimal" id="m_sal" value="${s.salary || ''}" placeholder="0">
+  <div class="btn2" style="margin-top:14px"><button class="big alt small" onclick="closeModal()">Cancel</button><button class="big small" onclick="saveStaff('${id || ''}')">Save</button></div>
+  ${id && !used ? `<button class="big red small" onclick="S.staff=S.staff.filter(x=>x.id!=='${id}');save();closeModal();peopleTab='staff';go('people')">Delete staff</button>` : ''}`);
+}
+function saveStaff(id) {
+  const name = document.getElementById('m_name').value.trim(); if (!name) return toast('Enter name');
+  const salary = num(document.getElementById('m_sal').value);
+  if (id) Object.assign(S.staff.find(x => x.id === id), { name, salary }); else S.staff.push({ id: uid(), name, salary });
+  save(); closeModal(); render(); toast('Saved');
+}
+
+/* ----- Reports ----- */
+VIEWS.reports = () => {
+  const m = repMonth; const P = periodData(m); const t = today();
+  const td = S.days[t]; const L = P.L; const tl = L.days[t];
+  const tExp = sum(S.tx.filter(x => x.date === t && x.from === 'shop'), x => num(x.amt));
+  const obj = o => Object.keys(o).length ? Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="row"><span>${esc(k)}</span><span class="r">${inr(v)}</span></div>`).join('') : '<div class="muted">None</div>';
+  const b = L.bal;
+  return `${topbar('Reports', monthName(m))}
+  <main>
+  <div class="card"><h3>Today · ${fmtD(t)}</h3>
+    ${td ? `<div class="row"><span>Total sales</span><span class="r">${inr(td.sales)}</span></div>
+    <div class="row"><span>Cash / UPI / Online</span><span>${inr(td.sales - td.upi - td.online)} / ${inr(td.upi)} / ${inr(td.online)}</span></div>
+    <div class="row"><span>Shop expenses &amp; payments</span><span class="r">${inr(tExp)}</span></div>
+    <div class="row"><span>Cash I took</span><span class="r">${inr(td.taken)}</span></div>
+    <div class="row"><span>Closing cash in shop</span><span class="r">${inr(tl ? tl.close.shop : 0)}</span></div>
+    ${tl && tl.adj ? `<div class="row"><span>Cash ${tl.adj < 0 ? 'short' : 'extra'}</span><span class="r ${tl.adj < 0 ? 'neg' : 'pos'}">${inr(Math.abs(tl.adj))}</span></div>` : ''}`
+      : `<div class="muted">Today's shop entry not done yet.</div>`}
+  </div>
+  <div class="card"><label class="f" style="margin-top:0">Month for report</label>
+    <div style="display:flex;gap:8px"><input class="in" type="month" value="${m === 'all' ? thisMonth() : m}" onchange="if(this.value){repMonth=this.value;render()}" style="flex:1">
+    <button class="chip ${m === 'all' ? 'on' : ''}" style="flex:none;min-width:0;padding:0 14px" onclick="repMonth=repMonth==='all'?thisMonth():'all';render()">All time</button></div>
+  </div>
+  <div class="card"><h3>Sales · ${monthName(m)}</h3>
+    <div class="row"><span>Days entered</span><span class="r">${P.dayKeys.length}</span></div>
+    <div class="row tot"><span>Total sales</span><span class="r">${inr(P.sales)}</span></div>
+    <div class="row"><span>Cash sales</span><span class="r">${inr(P.cashSales)}</span></div>
+    <div class="row"><span>UPI</span><span class="r">${inr(P.upi)}</span></div>
+    <div class="row"><span>Online</span><span class="r">${inr(P.online)}</span></div>
+    ${P.shortEx ? `<div class="row"><span>Cash ${P.shortEx < 0 ? 'shortage' : 'extra'} (total)</span><span class="r ${P.shortEx < 0 ? 'neg' : 'pos'}">${inr(Math.abs(P.shortEx))}</span></div>` : ''}
+  </div>
+  <div class="card"><h3>Business expenses by type</h3>${obj(P.bizExp)}
+    <div class="row tot"><span>Total expenses</span><span class="r neg">${inr(P.bizTotal)}</span></div>
+    <div class="hint">Includes shop expenses, cash purchases, salary, advances, commission, rent, electricity and other expenses.</div></div>
+  <div class="card"><h3>Other payments</h3>${obj(P.otherPay)}
+    ${P.otherTotal ? `<div class="row tot"><span>Total</span><span class="r">${inr(P.otherTotal)}</span></div>` : ''}
+    <div class="hint">Supplier payments, money taken for home, loan repayments.</div></div>
+  ${Object.keys(P.moneyIn).length ? `<div class="card"><h3>Other money received</h3>${obj(P.moneyIn)}</div>` : ''}
+  <div class="card"><h3>Purchases</h3>
+    <div class="row"><span>Credit purchases (to pay later)</span><span class="r">${inr(P.creditBuy)}</span></div>
+    <div class="row"><span>Cash purchases</span><span class="r">${inr(P.bizExp['Cash purchase'] || 0)}</span></div></div>
+  <div class="card"><h3>Balances right now</h3>
+    <div class="row"><span>🏪 Shop cash</span><span class="r">${inr(b.shop)}</span></div>
+    <div class="row"><span>👛 My cash</span><span class="r">${inr(b.cash)}</span></div>
+    <div class="row"><span>🏦 Bank</span><span class="r">${inr(b.bank)}</span></div>
+    <div class="row tot"><span>Total</span><span class="r">${inr(b.shop + b.cash + b.bank)}</span></div></div>
+  <div class="card"><h3>Supplier balances</h3>
+    ${S.suppliers.map(s => `<div class="row"><span>${esc(s.name)}</span><span class="r ${supBal(s) > 0 ? 'neg' : ''}">${inr(supBal(s))}</span></div>`).join('')}
+    <div class="row tot"><span>Total I owe</span><span class="r neg">${inr(sum(S.suppliers, supBal))}</span></div></div>
+  ${m !== 'all' ? `<div class="card"><h3>Staff · ${monthName(m)}</h3>
+    ${S.staff.map(s => { const x = staffMonth(s, m); return `<div class="row"><span>${esc(s.name)}<br><span class="muted">Earned ${inr(x.total)} · Given ${inr(x.given)}</span></span><span class="r ${x.due > 0 ? 'neg' : ''}">${x.due >= 0 ? inr(x.due) + ' due' : inr(-x.due) + ' over'}</span></div>`; }).join('')}</div>` : ''}
+  <button class="big green" onclick="shareExcel('${m}')">📤 Share ${m === 'all' ? 'all data' : monthName(m)} as Excel</button>
+  <button class="big alt" onclick="histMonth='${m === 'all' ? thisMonth() : m}';go('history')">📋 See all entries</button>
+  </main>`;
+};
+
+/* ----- History ----- */
+VIEWS.history = () => {
+  const m = histMonth; const L = ledger();
+  const txs = S.tx.filter(t => t.date.startsWith(m));
+  const dates = [...new Set([...txs.map(t => t.date), ...Object.keys(S.days).filter(d => d.startsWith(m))])].sort().reverse();
+  return `${topbar('All entries', monthName(m), "go('reports')")}
+  <main>
+  <div class="card"><input class="in" type="month" value="${m}" onchange="if(this.value){histMonth=this.value;render()}"></div>
+  ${dates.length ? dates.map(d => {
+    const day = S.days[d]; const dt = txs.filter(t => t.date === d).sort((a, b) => b.ts.localeCompare(a.ts));
+    return `<div class="sec">${fmtDshort(d)}</div><div class="card">
+    ${day ? `<div class="item" onclick="curDay='${d}';go('day')"><div style="font-size:22px">🏪</div><div class="t"><b>Shop day · Sales ${inr(day.sales)}</b><span>UPI ${inr(day.upi)} · Online ${inr(day.online)} · Taken ${inr(day.taken)}${L.days[d] ? ' · Closing ' + inr(L.days[d].close.shop) : ''}</span></div><div class="a">›</div></div>` : ''}
+    ${dt.map(txItem).join('')}</div>`;
+  }).join('') : '<div class="card empty">No entries this month</div>'}
+  </main>`;
+};
+
+/* ----- Settings ----- */
+VIEWS.settings = () => {
+  const days = S.lastBackup ? new Date(S.lastBackup).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Never';
+  return `${topbar('Settings', '', "go('home')")}
+  <main>
+  <div class="sec">Backup — very important</div>
+  <div class="card">
+    <div class="muted" style="margin-bottom:10px">Records are kept only on this iPhone. Save a backup file every week (to Files / iCloud Drive, WhatsApp to yourself, or email). Last backup: <b>${days}</b></div>
+    <button class="big green small" onclick="backup()">💾 Backup now</button>
+    <button class="big alt small" onclick="document.getElementById('restoreFile').click()">📥 Restore from backup file</button>
+    <button class="big alt small" onclick="shareExcel('all')">📤 Share all data as Excel</button>
+  </div>
+  <div class="sec">Shop</div>
+  <div class="card">
+    <label class="f" style="margin-top:0">Shop name</label>
+    <input class="in" value="${esc(S.shop)}" onchange="S.shop=this.value.trim()||'Ain Vogue';save();toast('Saved')">
+  </div>
+  <div class="sec">Starting figures (on ${fmtD(S.start.date)})</div>
+  <div class="card">
+    <label class="f" style="margin-top:0">Start date</label><input class="in" type="date" id="st_date" value="${S.start.date}">
+    <label class="f">🏪 Shop drawer cash</label><input class="in amt" inputmode="decimal" id="st_shop" value="${S.start.shop}">
+    <label class="f">👛 My cash in hand</label><input class="in amt" inputmode="decimal" id="st_cash" value="${S.start.cash}">
+    <label class="f">🏦 Bank balance</label><input class="in amt" inputmode="decimal" id="st_bank" value="${S.start.bank}">
+    <label class="f">Loan to repay</label><input class="in amt" inputmode="decimal" id="st_loan" value="${S.start.loan || 0}">
+    <div class="hint">Supplier starting balances are in People → Suppliers → Edit.</div>
+    <button class="big small" style="margin-top:12px" onclick="saveStart()">Save starting figures</button>
+  </div>
+  <div class="sec">Shop expense types</div>
+  <div class="card">
+    ${S.expenseTypes.map((c, i) => `<div class="item"><div class="t"><b>${esc(c)}</b></div><button class="x" onclick="S.expenseTypes.splice(${i},1);save();render()">×</button></div>`).join('')}
+    <button class="big alt small" style="margin-top:10px" onclick="newExpType('settings')">➕ Add type</button>
+  </div>
+  <div class="sec">Security</div>
+  <div class="card">
+    <button class="big alt small" onclick="changePin()">🔑 Change PIN</button>
+    <button class="big alt small" onclick="locked=true;render()">🔒 Lock now</button>
+  </div>
+  <div class="sec">Danger zone</div>
+  <div class="card"><button class="big red small" onclick="forgotPin()">Erase all data</button></div>
+  <div class="muted" style="text-align:center;margin:10px 0">Ain Vogue Cash Book · v1.0</div>
+  </main>`;
+};
+function saveStart() {
+  const g = id => document.getElementById(id).value;
+  const d = g('st_date') || S.start.date;
+  const early = S.tx.some(t => t.date < d) || Object.keys(S.days).some(x => x < d);
+  if (early) return toast('Some entries are before this date. Choose an earlier date.');
+  S.start = { date: d, shop: num(g('st_shop')), cash: num(g('st_cash')), bank: num(g('st_bank')), loan: num(g('st_loan')) };
+  save(); toast('Starting figures saved'); render();
+}
+
+/* ---------- Share / backup ---------- */
+async function shareFile(name, blob, type) {
+  const file = new File([blob], name, { type });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name }); return true; }
+    catch (e) { if (e && e.name === 'AbortError') return false; }
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  return true;
+}
+async function backup() {
+  const data = JSON.stringify({ app: 'ainvogue-cashbook', exported: new Date().toISOString(), data: S });
+  const ok = await shareFile('AinVogue-backup-' + today() + '.json', new Blob([data], { type: 'application/json' }), 'application/json');
+  if (ok) { S.lastBackup = Date.now(); save(); render(); toast('Backup file created ✓'); }
+}
+document.getElementById('restoreFile').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const j = JSON.parse(rd.result); const d = j.data || j;
+      if (!d || !d.start || !Array.isArray(d.tx)) throw new Error('bad');
+      ask('Restore this backup?', 'This will <b>replace everything</b> on this phone with the backup from ' + (j.exported ? new Date(j.exported).toLocaleString('en-IN') : 'the file') + '.', 'Restore', '', () => {
+        S = d; save(); locked = false; go('home'); toast('Backup restored ✓');
+      });
+    } catch (err) { toast('This is not a valid backup file'); }
+    e.target.value = '';
+  };
+  rd.readAsText(f);
+});
+
+/* ---------- Excel (.xlsx) writer, no internet needed ---------- */
+const CRC = (() => { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u) { let c = 0xFFFFFFFF; for (let i = 0; i < u.length; i++) c = CRC[(c ^ u[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function zip(files) {
+  const enc = new TextEncoder(); const parts = [], central = []; let off = 0;
+  files.forEach(f => {
+    const name = enc.encode(f.name), data = enc.encode(f.data), crc = crc32(data);
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(8, 0, true);
+    h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, name.length, true);
+    parts.push(new Uint8Array(h.buffer), name, data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true);
+    c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, name.length, true); c.setUint32(42, off, true);
+    central.push(new Uint8Array(c.buffer), name);
+    off += 30 + name.length + data.length;
+  });
+  const csize = central.reduce((a, x) => a + x.length, 0);
+  const e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, csize, true); e.setUint32(16, off, true);
+  return new Blob([...parts, ...central, new Uint8Array(e.buffer)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+const xesc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+function colL(i) { let s = ''; i++; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+function excelSerial(d) { const [y, m, dd] = d.split('-').map(Number); return (Date.UTC(y, m - 1, dd) - Date.UTC(1899, 11, 30)) / 86400000; }
+// cell: string | number | {d:'YYYY-MM-DD'} | {h:'Header'} | {b:'Bold text'} | {n:number, b:1}
+function sheetXml(rows, widths) {
+  const cols = widths ? '<cols>' + widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('') + '</cols>' : '';
+  const body = rows.map((r, ri) => '<row r="' + (ri + 1) + '">' + r.map((c, ci) => {
+    const ref = colL(ci) + (ri + 1);
+    if (c === null || c === undefined || c === '') return '';
+    if (typeof c === 'number') return `<c r="${ref}" s="3"><v>${r2(c)}</v></c>`;
+    if (typeof c === 'string') return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xesc(c)}</t></is></c>`;
+    if (c.d) return `<c r="${ref}" s="2"><v>${excelSerial(c.d)}</v></c>`;
+    if (c.h !== undefined) return `<c r="${ref}" s="1" t="inlineStr"><is><t>${xesc(c.h)}</t></is></c>`;
+    if (c.t !== undefined) return `<c r="${ref}" s="4" t="inlineStr"><is><t>${xesc(c.t)}</t></is></c>`;
+    if (c.n !== undefined) return `<c r="${ref}" s="5"><v>${r2(c.n)}</v></c>`;
+    return '';
+  }).join('') + '</row>').join('');
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${cols}<sheetData>${body}</sheetData></worksheet>`;
+}
+function buildXlsx(sheets) {
+  const files = [
+    { name: '[Content_Types].xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>` },
+    { name: '_rels/.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
+    { name: 'xl/workbook.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s, i) => `<sheet name="${xesc(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>` },
+    { name: 'xl/_rels/workbook.xml.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((s, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>` },
+    { name: 'xl/styles.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="2"><numFmt numFmtId="164" formatCode="dd\\-mmm\\-yyyy"/><numFmt numFmtId="165" formatCode="#,##0.00"/></numFmts><fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF6B2D5C"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="165" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>` },
+  ];
+  sheets.forEach((s, i) => files.push({ name: `xl/worksheets/sheet${i + 1}.xml`, data: sheetXml(s.rows, s.widths) }));
+  return zip(files);
+}
+function excelData(m) {
+  const P = periodData(m); const L = P.L; const inP = d => m === 'all' || d.startsWith(m);
+  const title = S.shop + ' — ' + monthName(m);
+  // Summary
+  const sum1 = [[{ t: title }], ['Exported on', { d: today() }], [],
+    [{ h: 'SALES' }, { h: 'Amount (₹)' }], ['Total sales', P.sales], ['Cash sales', P.cashSales], ['UPI', P.upi], ['Online', P.online], ['Days entered', P.dayKeys.length], ['Cash short (−) / extra (+)', P.shortEx], [],
+    [{ h: 'BUSINESS EXPENSES' }, { h: 'Amount (₹)' }], ...Object.entries(P.bizExp).sort((a, b) => b[1] - a[1]), [{ t: 'Total expenses' }, { n: P.bizTotal }], [],
+    [{ h: 'OTHER PAYMENTS' }, { h: 'Amount (₹)' }], ...Object.entries(P.otherPay), [{ t: 'Total' }, { n: P.otherTotal }], [],
+    [{ h: 'OTHER MONEY RECEIVED' }, { h: 'Amount (₹)' }], ...Object.entries(P.moneyIn), [],
+    ['Credit purchases (to pay later)', P.creditBuy], [],
+    [{ h: 'BALANCES NOW' }, { h: 'Amount (₹)' }], ['Shop cash', L.bal.shop], ['My cash', L.bal.cash], ['Bank', L.bal.bank], [{ t: 'Total' }, { n: L.bal.shop + L.bal.cash + L.bal.bank }], ['Owed to suppliers', sum(S.suppliers, supBal)], ['Loan to repay', loanBal()]];
+  // Daily
+  const daily = [[{ h: 'Date' }, { h: 'Opening cash' }, { h: 'Total sales' }, { h: 'UPI' }, { h: 'Online' }, { h: 'Cash sales' }, { h: 'Shop expenses/payments' }, { h: 'Cash taken by me' }, { h: 'Expected closing' }, { h: 'Counted cash' }, { h: 'Short(−)/Extra(+)' }, { h: 'Closing cash' }, { h: 'Note' }]];
+  Object.keys(L.days).filter(inP).sort().forEach(d => {
+    const x = L.days[d], day = S.days[d] || {};
+    const shopOut = r2(sum(S.tx.filter(t => t.date === d && t.from === 'shop'), t => num(t.amt)) - sum(S.tx.filter(t => t.date === d && t.to === 'shop'), t => num(t.amt)));
+    const cs = r2(num(day.sales) - num(day.upi) - num(day.online));
+    const exp = x.expected !== null ? x.expected : x.close.shop;
+    daily.push([{ d }, x.open.shop, num(day.sales), num(day.upi), num(day.online), cs, shopOut, num(day.taken), exp, day.counted !== null && day.counted !== undefined ? num(day.counted) : '', x.adj || 0, x.close.shop, day.note || '']);
+  });
+  // Entries
+  const ent = [[{ h: 'Date' }, { h: 'Type' }, { h: 'Expense type / Details' }, { h: 'Supplier / Staff' }, { h: 'Salary month' }, { h: 'From' }, { h: 'To' }, { h: 'Amount (₹)' }, { h: 'Note' }]];
+  P.txs.slice().sort((a, b) => (a.date + a.ts).localeCompare(b.date + b.ts)).forEach(t => {
+    const who = t.sup ? (S.suppliers.find(x => x.id === t.sup) || {}).name : t.staff ? (S.staff.find(x => x.id === t.staff) || {}).name : '';
+    ent.push([{ d: t.date }, K[t.k].l, t.cat || '', who || '', t.month ? monthName(t.month) : '', t.from ? ACC[t.from] : (t.k === 'credit_buy' ? 'Credit' : ''), t.to ? ACC[t.to] : '', num(t.amt), t.note || '']);
+  });
+  // Suppliers
+  const sup = [[{ h: 'Supplier' }, { h: 'Starting balance' }, { h: 'Credit purchases (all)' }, { h: 'Paid (all)' }, { h: 'Balance owed now' }, { h: 'Purchases in period' }, { h: 'Paid in period' }]];
+  S.suppliers.forEach(s => {
+    const all = S.tx.filter(t => t.sup === s.id), per = all.filter(t => inP(t.date));
+    sup.push([s.name, num(s.opening), sum(all.filter(t => t.k === 'credit_buy'), t => num(t.amt)), sum(all.filter(t => t.k === 'sup_pay'), t => num(t.amt)), supBal(s), sum(per.filter(t => t.k === 'credit_buy'), t => num(t.amt)), sum(per.filter(t => t.k === 'sup_pay'), t => num(t.amt))]);
+  });
+  // Staff
+  const months = m === 'all' ? [...new Set([...S.tx.filter(t => t.month).map(t => t.month), ...Object.keys(S.commission).map(k => k.split('|')[1])])].sort() : [m];
+  const st = [[{ h: 'Month' }, { h: 'Staff' }, { h: 'Salary' }, { h: 'Commission' }, { h: 'Total earned' }, { h: 'Advances' }, { h: 'Salary paid' }, { h: 'Commission paid' }, { h: 'Balance to pay' }]];
+  months.forEach(mo => S.staff.forEach(s => { const x = staffMonth(s, mo); st.push([monthName(mo), s.name, num(s.salary), x.com, x.total, x.adv, x.paid, x.comPaid, x.due]); }));
+  return [
+    { name: 'Summary', rows: sum1, widths: [34, 16] },
+    { name: 'Daily Shop', rows: daily, widths: [13, 13, 13, 12, 12, 13, 16, 14, 15, 13, 14, 13, 24] },
+    { name: 'All Entries', rows: ent, widths: [13, 22, 22, 18, 15, 12, 12, 13, 28] },
+    { name: 'Suppliers', rows: sup, widths: [18, 15, 18, 14, 16, 17, 15] },
+    { name: 'Staff Salary', rows: st, widths: [16, 14, 12, 13, 13, 12, 12, 15, 15] },
+  ];
+}
+async function shareExcel(m) {
+  const blob = buildXlsx(excelData(m));
+  const name = 'AinVogue-' + (m === 'all' ? 'All-' + today() : m) + '.xlsx';
+  await shareFile(name, blob, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+}
+
+/* ---------- start ---------- */
+if ('serviceWorker' in navigator && location.protocol === 'https:') { navigator.serviceWorker.register('sw.js').catch(() => { }); }
+render();
+</script>
+</body>
+</html>
