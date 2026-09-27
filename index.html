@@ -106,18 +106,20 @@ label.f{display:block;margin:12px 0 5px;font-size:14px;font-weight:600;color:#4a
 .empty{text-align:center;color:var(--muted);padding:18px 6px;font-size:14px}
 .warn{color:var(--red);font-size:13px;margin-top:6px}
 .preview{background:#231a20;color:#fff;font-size:12.5px;text-align:center;padding:6px}
+.syncline{background:#f4e9f1;color:var(--plum);font-size:12.5px;text-align:center;padding:5px 10px;position:sticky;top:calc(58px + env(safe-area-inset-top));z-index:4}
+.syncline.bad{background:#fff3e0;color:#8a5200}
+button.banner{font:inherit;font-size:14px;display:block}
 </style>
 </head>
 <body>
 <div id="app"></div>
 <div id="toast" class="toast"></div>
-<input type="file" id="restoreFile" accept=".json,application/json,text/plain" style="display:none">
-
 <script>
 /* =========================================================
-   Ain Vogue Cash Book — all data stays on this phone
+   Ain Vogue Cash Book v2 — owner + staff, saved in Google Sheet
    ========================================================= */
-const KEY = 'ainvogue_cashbook_v1';
+const CONFIG_URL = '';   // ← Google Apps Script web app link (…/exec). Can also be pasted in the app.
+const LS_CONN = 'av2_url', LS_AUTH = 'av2_auth', LS_DATA = 'av2_data';
 const app = document.getElementById('app');
 
 /* ---------- helpers ---------- */
@@ -134,26 +136,32 @@ const fmtD = d => { if (!d) return ''; const [y, m, dd] = d.split('-'); return n
 const fmtDshort = d => { const [y, m, dd] = d.split('-'); return new Date(y, m - 1, dd).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }); };
 const monthName = m => { if (m === 'all') return 'All time'; const [y, mm] = m.split('-'); return new Date(y, mm - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }); };
 const sum = (arr, f) => r2(arr.reduce((a, x) => a + (f ? f(x) : x), 0));
-function hashPin(p) { let h = 5381; const s = 'ainvogue#' + p; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return 'h' + h.toString(36); }
-
-/* ---------- storage ---------- */
-let memCopy = null, PREVIEW = false;
-try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); } catch (e) { PREVIEW = true; }
-function load() { try { const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return memCopy; } }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { memCopy = JSON.parse(JSON.stringify(S)); } }
+function localHash(p) { let h = 5381; const s = 'ainvogue#' + p + '#' + (URL_ || ''); for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return 'h' + h.toString(36); }
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { } }
+function lsJSON(k) { try { return JSON.parse(lsGet(k) || 'null'); } catch (e) { return null; } }
 if (navigator.storage && navigator.storage.persist) { try { navigator.storage.persist(); } catch (e) { } }
 
-function freshData() {
+/* ---------- state ---------- */
+const DEF_TYPES = ['Food Allowance', 'Cleaning', 'Tea / Snacks', 'Transport', 'Stationery', 'Repairs', 'Other'];
+let URL_ = CONFIG_URL || lsGet(LS_CONN) || '';
+let AUTH = lsJSON(LS_AUTH);             // {hash, role}
+let D = lsJSON(LS_DATA) || { S: null, Q: [], last: null };
+let S = D.S ? normalize(D.S) : null;
+let Q = D.Q || [];
+let PIN = null;
+const role = () => AUTH ? AUTH.role : null;
+const isOwner = () => role() === 'owner';
+function persist() { D = { S, Q, last: D.last, role: D.role }; lsSet(LS_DATA, JSON.stringify(D)); }
+function normalize(x) {
   return {
-    v: 1, shop: 'Ain Vogue', pin: null, setup: false,
-    start: { date: today(), shop: 0, cash: 0, bank: 0, loan: 0 },
-    expenseTypes: ['Food Allowance', 'Cleaning', 'Tea / Snacks', 'Transport', 'Stationery', 'Repairs', 'Other'],
-    suppliers: [{ id: uid(), name: 'Sakshi', opening: 0 }],
-    staff: [{ id: uid(), name: 'Kebi', salary: 0 }, { id: uid(), name: 'Apri', salary: 0 }, { id: uid(), name: 'AJU', salary: 0 }],
-    days: {}, tx: [], commission: {}, lastBackup: null
+    shop: x.shop || 'Ain Vogue', setup: !!x.setup,
+    start: x.start && x.start.date ? x.start : { date: today(), shop: 0, cash: 0, bank: 0, loan: 0 },
+    expenseTypes: x.expenseTypes && x.expenseTypes.length ? x.expenseTypes : DEF_TYPES.slice(),
+    commission: x.commission || {}, staffName: x.staffName || '', staffPinSet: !!x.staffPinSet,
+    suppliers: x.suppliers || [], staff: x.staff || [], days: x.days || {}, tx: x.tx || [], requests: x.requests || []
   };
 }
-let S = load() || freshData();
 
 /* ---------- money types ---------- */
 const ACC = { shop: 'Shop cash', cash: 'My cash', bank: 'Bank' };
@@ -177,6 +185,121 @@ const K = {
   deposit:    { l: 'Deposit cash in bank',g: 'move', ic: '⬆️', fromOpts: ['cash', 'shop'], to: 'bank' },
   withdraw:   { l: 'Withdraw from bank',  g: 'move', ic: '⬇️', from: 'bank', to: 'cash' },
 };
+const kOf = t => K[t.k] || { l: t.kname || t.k, g: 'move', ic: '•' };
+
+/* ---------- server ---------- */
+async function api(body) {
+  const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 30000);
+  try {
+    const r = await fetch(URL_, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow', signal: ctl.signal });
+    return await r.json();
+  } finally { clearTimeout(tm); }
+}
+let syncing = false, syncAgain = false, inflight = 0, online = true, syncErr = '';
+async function sync() {
+  if (!PIN || !URL_) return;
+  if (syncing) { syncAgain = true; return; }
+  syncing = true; const ops = Q.slice(); inflight = ops.length; syncUI();
+  try {
+    const res = await api({ a: 'sync', pin: PIN, ops });
+    online = true;
+    if (!res.ok) {
+      if (res.err === 'auth') { authLost('Your PIN was changed. Please enter the new PIN.'); }
+      else if (res.err === 'locked') { syncErr = 'Too many wrong PINs. Wait 15 minutes.'; }
+      else syncErr = res.err || 'error';
+    } else {
+      Q.splice(0, ops.length); syncErr = '';
+      const bad = (res.results || []).filter(x => !x.ok), reqs = (res.results || []).filter(x => x.request).length;
+      const wasSetup = S && S.setup;
+      S = normalize(res.state); Q.forEach(o => applyLocal(o));
+      D.last = Date.now(); persist();
+      if (bad.length) toast('Not saved: ' + bad[0].err);
+      else if (reqs) toast('Sent to owner for approval ✓');
+      softRender(wasSetup !== S.setup);
+    }
+  } catch (e) { online = false; }
+  syncing = false; inflight = 0; syncUI();
+  if (syncAgain) { syncAgain = false; sync(); }
+}
+function authLost(msg) {
+  AUTH = null; lsSet(LS_AUTH, null); PIN = null; locked = true; pinMode = null; pinBuf = ''; pinMsg = msg; helloState = null; closeModal(); render();
+}
+function syncText() {
+  if (syncErr) return '⚠ ' + syncErr;
+  if (syncing) return '⏳ Saving…';
+  if (!online) return Q.length ? `⚠ Offline · ${Q.length} waiting to upload` : '⚠ Offline';
+  if (Q.length) return `⏳ ${Q.length} waiting to upload`;
+  if (D.last) return '✓ Saved online ' + new Date(D.last).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+  return '';
+}
+function syncUI() { const el = document.getElementById('syncline'); if (el) { el.textContent = syncText(); el.className = 'syncline' + ((!online || syncErr) ? ' bad' : ''); } }
+setInterval(() => { if (!locked && PIN && !document.hidden) sync(); }, 60000);
+window.addEventListener('online', () => { if (!locked && PIN) sync(); });
+
+/* ---------- local apply (mirrors server rules) ---------- */
+function dayAccepted(d) { const x = S.days[d]; return !!(x && x.status === 'accepted'); }
+function localReq(date, summary) { S.requests.push({ id: 'local-' + uid(), date, summary, requested: 'waiting to upload', local: true }); }
+function applyLocal(o) {
+  const staff = !isOwner();
+  switch (o.t) {
+    case 'day': {
+      const ex = S.days[o.rec.date];
+      if (staff && ex && ex.status === 'accepted') { localReq(o.rec.date, 'Change day figures'); return 'req'; }
+      S.days[o.rec.date] = { ...o.rec, status: staff ? 'pending' : (ex ? ex.status : 'accepted'), by: staff ? 'staff' : (ex ? ex.by : 'owner') };
+      return 'ok';
+    }
+    case 'delday': {
+      if (staff && dayAccepted(o.date)) { localReq(o.date, 'Clear day figures'); return 'req'; }
+      delete S.days[o.date]; return 'ok';
+    }
+    case 'tx': {
+      const i = S.tx.findIndex(x => x.id === o.rec.id); const ex = i >= 0 ? S.tx[i] : null;
+      if (staff && (dayAccepted(o.rec.date) || (ex && dayAccepted(ex.date)))) { localReq(o.rec.date, (K[o.rec.k] || {}).l + ' ' + inr(o.rec.amt)); return 'req'; }
+      const t = { ...o.rec, kname: (K[o.rec.k] || {}).l, status: staff ? 'pending' : (ex ? ex.status : 'ok'), by: staff ? 'staff' : (ex ? ex.by : 'owner'), created: ex ? ex.created : new Date().toISOString() };
+      if (t.staff) { const s = S.staff.find(z => z.id === t.staff); t.staffName = s ? s.name : ''; }
+      if (i >= 0) S.tx[i] = t; else S.tx.push(t);
+      return 'ok';
+    }
+    case 'deltx': {
+      const t = S.tx.find(x => x.id === o.id); if (!t) return 'ok';
+      if (staff && dayAccepted(t.date)) { localReq(t.date, 'Delete ' + txLabel(t)); return 'req'; }
+      S.tx = S.tx.filter(x => x.id !== o.id); return 'ok';
+    }
+    case 'sup': { const i = S.suppliers.findIndex(x => x.id === o.rec.id); if (i >= 0) S.suppliers[i] = { ...o.rec }; else S.suppliers.push({ ...o.rec }); return 'ok'; }
+    case 'staff': { const i = S.staff.findIndex(x => x.id === o.rec.id); if (i >= 0) S.staff[i] = { ...o.rec }; else S.staff.push({ ...o.rec }); return 'ok'; }
+    case 'delsup': S.suppliers = S.suppliers.filter(x => x.id !== o.id); return 'ok';
+    case 'delstaff': S.staff = S.staff.filter(x => x.id !== o.id); return 'ok';
+    case 'set': {
+      if (o.key === 'expenseTypes' && staff) { o.value.forEach(v => { if (!S.expenseTypes.includes(v)) S.expenseTypes.push(v); }); return 'ok'; }
+      S[o.key] = o.value; return 'ok';
+    }
+    case 'accept': {
+      if (S.days[o.date]) S.days[o.date].status = 'accepted';
+      S.tx.forEach(t => { if (t.date === o.date && t.status === 'pending') t.status = 'ok'; });
+      return 'ok';
+    }
+    case 'decide': {
+      const rq = S.requests.find(r => r.id === o.id);
+      S.requests = S.requests.filter(r => r.id !== o.id);
+      if (o.approve && rq && rq.data) { try { const inner = JSON.parse(rq.data); applyLocal(inner); if (inner.t === 'tx') { const t = S.tx.find(x => x.id === inner.rec.id); if (t) { t.status = 'ok'; t.by = 'staff'; } } } catch (e) { } }
+      return 'ok';
+    }
+  }
+  return 'ok';
+}
+function commit(o) {
+  const r = applyLocal(o); Q.push(o); persist(); sync(); return r;
+}
+let dayTimer = null;
+function commitDayDebounced(rec, date) {
+  if (rec) applyLocal({ t: 'day', rec }); else delete S.days[date];
+  if (rec) date = rec.date;
+  persist();
+  clearTimeout(dayTimer);
+  dayTimer = setTimeout(() => {
+    dayTimer = null; flushDay(date);
+  }, 1200);
+}
 
 /* ---------- calculations ---------- */
 function ledger() {
@@ -192,7 +315,7 @@ function ledger() {
       const cs = num(day.sales) - num(day.upi) - num(day.online);
       b.shop += cs - num(day.taken); b.bank += num(day.upi) + num(day.online); b.cash += num(day.taken);
     }
-    (byDate[d] || []).forEach(t => { if (t.from) b[t.from] -= num(t.amt); if (t.to) b[t.to] += num(t.amt); });
+    (byDate[d] || []).forEach(t => { if (t.from && b[t.from] !== undefined) b[t.from] -= num(t.amt); if (t.to && b[t.to] !== undefined) b[t.to] += num(t.amt); });
     if (day && day.counted !== null && day.counted !== undefined && day.counted !== '') {
       expected = r2(b.shop); adj = r2(num(day.counted) - b.shop); b.shop = num(day.counted);
     }
@@ -221,10 +344,11 @@ function staffMonth(s, m) {
   return { com, adv, paid, comPaid, total, given: r2(adv + paid + comPaid), due: r2(total - adv - paid - comPaid), txs };
 }
 function loanBal() { return r2(num(S.start.loan) + sum(S.tx.filter(t => t.k === 'loan_in'), t => num(t.amt)) - sum(S.tx.filter(t => t.k === 'loan_out'), t => num(t.amt))); }
+function staffNameOf(id, t) { const x = S.staff.find(z => z.id === id); return x ? x.name : (t && t.staffName) || ''; }
 function txLabel(t) {
-  let s = t.k === 'shop_exp' ? (t.cat || 'Shop expense') : K[t.k].l;
+  let s = t.k === 'shop_exp' ? (t.cat || 'Shop expense') : kOf(t).l;
   if (t.sup) { const x = S.suppliers.find(z => z.id === t.sup); if (x) s += ' · ' + x.name; }
-  if (t.staff) { const x = S.staff.find(z => z.id === t.staff); if (x) s += ' · ' + x.name; }
+  if (t.staff) { const n = staffNameOf(t.staff, t); if (n) s += ' · ' + n; }
   return s;
 }
 function txFlow(t) {
@@ -233,6 +357,12 @@ function txFlow(t) {
   if (t.from) return 'From ' + ACC[t.from];
   if (t.to) return 'Into ' + ACC[t.to];
   return '';
+}
+function pendingDates() {
+  const set = new Set();
+  Object.keys(S.days).forEach(d => { if (S.days[d].status === 'pending') set.add(d); });
+  S.tx.forEach(t => { if (t.status === 'pending') set.add(t.date); });
+  return [...set].sort();
 }
 function periodData(m) {
   const inP = d => m === 'all' || d.startsWith(m);
@@ -244,12 +374,12 @@ function periodData(m) {
   const txs = S.tx.filter(t => inP(t.date));
   const bizExp = {}, otherPay = {};
   txs.forEach(t => {
-    const k = K[t.k]; if (k.g !== 'out') return;
+    const k = kOf(t); if (k.g !== 'out') return;
     const lab = t.k === 'shop_exp' ? (t.cat || 'Shop expense') : k.l;
     const tgt = k.exp ? bizExp : otherPay;
     tgt[lab] = r2((tgt[lab] || 0) + num(t.amt));
   });
-  const moneyIn = {}; txs.filter(t => K[t.k].g === 'in').forEach(t => moneyIn[K[t.k].l] = r2((moneyIn[K[t.k].l] || 0) + num(t.amt)));
+  const moneyIn = {}; txs.filter(t => kOf(t).g === 'in').forEach(t => moneyIn[kOf(t).l] = r2((moneyIn[kOf(t).l] || 0) + num(t.amt)));
   const creditBuy = sum(txs.filter(t => t.k === 'credit_buy'), t => num(t.amt));
   const shortEx = sum(Object.keys(L.days).filter(inP), d => L.days[d].adj || 0);
   return { L, dayKeys, sales, upi, online, cashSales: r2(sales - upi - online), taken, txs, bizExp, otherPay, moneyIn, creditBuy, shortEx,
@@ -258,83 +388,184 @@ function periodData(m) {
 
 /* ---------- UI plumbing ---------- */
 let V = { name: 'home', p: {} };
-let locked = true, pinMode = null, pinBuf = '', pinFirst = '', pinMsg = '';
+let locked = true, pinMode = null, pinBuf = '', pinFirst = '', pinMsg = '', helloState = null, busy = false;
 let curDay = today(), repMonth = thisMonth(), histMonth = thisMonth(), staffMonthSel = thisMonth(), peopleTab = 'sup';
 function go(name, p = {}) { V = { name, p }; render(); window.scrollTo(0, 0); }
-function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200); }
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600); }
 function modal(html) { closeModal(); const d = document.createElement('div'); d.className = 'modalbg'; d.id = 'mbg'; d.innerHTML = '<div class="modal">' + html + '</div>'; d.addEventListener('click', e => { if (e.target === d) closeModal(); }); document.body.appendChild(d); }
 function closeModal() { const m = document.getElementById('mbg'); if (m) m.remove(); }
 function ask(title, msg, okLabel, okClass, cb) {
   window._askCb = cb;
   modal(`<h2>${esc(title)}</h2><p>${msg}</p><div class="btn2"><button class="big alt small" onclick="closeModal()">Cancel</button><button class="big small ${okClass || ''}" onclick="closeModal();window._askCb()">${esc(okLabel)}</button></div>`);
 }
+function softRender(force) {
+  const a = document.activeElement;
+  const typing = a && ['INPUT', 'SELECT', 'TEXTAREA'].includes(a.tagName);
+  if (document.getElementById('mbg') || locked) { syncUI(); return; }
+  if (!force && (typing || V.name === 'day' || V.name === 'form')) { syncUI(); return; }
+  render();
+}
 function topbar(title, sub, back) {
-  return `<div class="top">${back ? `<button class="ib" onclick="${back}">‹</button>` : ''}<h1>${esc(title)}${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</h1>${!back && S.setup ? `<button class="ib" onclick="go('settings')">⚙︎</button>` : ''}</div>`;
+  const gear = isOwner() && S && S.setup ? `<button class="ib" onclick="go('settings')">⚙︎</button>` : (!isOwner() ? `<button class="ib" onclick="lockNow()">🔒</button>` : '');
+  return `<div class="top">${back ? `<button class="ib" onclick="${back}">‹</button>` : ''}<h1>${esc(title)}${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</h1>${!back ? gear : ''}</div>
+  <div id="syncline" class="syncline${(!online || syncErr) ? ' bad' : ''}" onclick="sync()">${esc(syncText())}</div>`;
 }
 function navbar() {
+  if (!isOwner()) {
+    const cur = V.name === 'past' ? 'past' : 'day';
+    return `<nav class="nav"><button class="${cur === 'day' ? 'on' : ''}" onclick="curDay=today();go('day')"><span class="e">🏪</span>Today</button><button class="${cur === 'past' ? 'on' : ''}" onclick="go('past')"><span class="e">📅</span>Past days</button><button onclick="lockNow()"><span class="e">🔒</span>Lock</button></nav>`;
+  }
   const tabs = [['home', '🏠', 'Home'], ['day', '🏪', 'Shop Day'], ['add', '+', 'Add'], ['people', '👥', 'People'], ['reports', '📊', 'Reports']];
-  const cur = { supplier: 'people', staff: 'people', form: 'add', history: 'reports', settings: 'home' }[V.name] || V.name;
+  const cur = { supplier: 'people', staff: 'people', form: 'add', history: 'reports', settings: 'home', review: 'home' }[V.name] || V.name;
   return `<nav class="nav">${tabs.map(([n, e, l]) => `<button class="${cur === n ? 'on' : ''} ${n === 'add' ? 'plus' : ''}" onclick="${n === 'day' ? "curDay=today();" : ''}go('${n}')"><span class="e">${e}</span>${l}</button>`).join('')}</nav>`;
 }
+function lockNow() { locked = true; pinMode = null; pinBuf = ''; PIN = null; closeModal(); render(); }
+
 function render() {
-  if (!S.pin) { if (!pinMode || pinMode === 'unlock') { pinMode = 'set'; pinMsg = 'Create a 4-digit PIN to protect the app'; } return renderPin(); }
-  if (locked) { if (pinMode !== 'unlock' && pinMode !== 'chkold') { pinMode = 'unlock'; pinMsg = 'Enter your PIN'; } return renderPin(); }
-  if (!S.setup) { app.innerHTML = (PREVIEW ? previewBar() : '') + vSetup(); return; }
+  if (!URL_) { app.innerHTML = vConnect(); return; }
+  if (!AUTH) {
+    if (helloState === null) { app.innerHTML = vMessage('Connecting…', 'Please wait'); doHello(); return; }
+    if (helloState === 'offline') { app.innerHTML = vMessage('No internet', 'The first time, the app needs internet to connect to your Google Sheet.', `<button class="big" onclick="helloState=null;render()">Try again</button><button class="big alt small" onclick="changeLink()">Change connection link</button>`); return; }
+    if (!pinMode || !['set', 'confirm', 'login'].includes(pinMode)) {
+      pinMode = helloState === 'new' ? 'set' : 'login';
+      pinMsg = pinMsg || (pinMode === 'set' ? 'Owner: create a 4-digit PIN' : 'Enter your PIN');
+    }
+    return renderPin();
+  }
+  if (locked) { if (!['unlock', 'chkold', 'newpin', 'newconfirm'].includes(pinMode)) { pinMode = 'unlock'; pinMsg = pinMsg || 'Enter your PIN'; } return renderPin(); }
+  if (!S) { app.innerHTML = vMessage('Loading your records…', online ? 'Please wait' : 'No internet. Records will load when you are online.', `<button class="big" onclick="sync()">Try again</button>`); if (!syncing) sync(); return; }
+  if (!S.setup) {
+    if (isOwner()) { app.innerHTML = vSetup(); return; }
+    app.innerHTML = vMessage('Not ready yet', 'The owner has not finished setting up the app. Please try again later.', `<button class="big" onclick="sync()">Refresh</button><button class="big alt small" onclick="lockNow()">Lock</button>`); return;
+  }
+  if (!isOwner() && !['day', 'past'].includes(V.name)) V = { name: 'day', p: {} };
   const v = VIEWS[V.name] || VIEWS.home;
-  app.innerHTML = (PREVIEW ? previewBar() : '') + v(V.p) + navbar();
+  app.innerHTML = v(V.p) + navbar();
   if (V.name === 'day') dayCalc(false);
 }
-function previewBar() { return `<div class="preview">Preview mode — data here is not kept. Install from your web link for real use.</div>`; }
+function vMessage(title, msg, btns) {
+  return `<div class="pin"><div class="logo">AV</div><h2>${esc(title)}</h2><div class="msg">${esc(msg)}</div><div style="width:100%;max-width:340px">${btns || ''}</div></div>`;
+}
+async function doHello() {
+  try { const r = await api({ a: 'hello' }); helloState = r.configured ? 'ready' : 'new'; online = true; }
+  catch (e) { helloState = 'offline'; online = false; }
+  pinMode = null; render();
+}
+
+/* ---------- connect ---------- */
+function vConnect() {
+  return `<div class="pin"><div class="logo">AV</div><h2>Connect to Google Sheet</h2><div class="msg">Paste the connection link (it ends with /exec)</div>
+  <div style="width:100%;max-width:360px"><input class="in" id="c_url" placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" autocorrect="off" style="margin-bottom:12px">
+  <button class="big" style="background:#f3d27a;color:#6b2d5c" onclick="saveLink()">Connect</button></div></div>`;
+}
+async function saveLink() {
+  const u = document.getElementById('c_url').value.trim();
+  if (!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(u)) return toast('This does not look like the right link');
+  URL_ = u;
+  try { const r = await api({ a: 'hello' }); if (r.ok === undefined) throw 0; lsSet(LS_CONN, u); helloState = r.configured ? 'ready' : 'new'; pinMode = null; render(); }
+  catch (e) { URL_ = ''; toast('Could not connect. Check the link and internet.'); }
+}
+function changeLink() { URL_ = ''; lsSet(LS_CONN, null); render(); }
 
 /* ---------- PIN ---------- */
 function renderPin() {
-  const titles = { set: 'Welcome to ' + S.shop, confirm: 'Confirm PIN', unlock: S.shop, chkold: 'Change PIN', newpin: 'New PIN', newconfirm: 'Confirm new PIN' };
-  app.innerHTML = `<div class="pin"><div class="logo">AV</div><h2>${esc(titles[pinMode] || S.shop)}</h2><div class="msg">${esc(pinMsg)}</div>
+  const titles = { set: 'Welcome to Ain Vogue', confirm: 'Confirm PIN', login: S ? S.shop : 'Ain Vogue', unlock: S ? S.shop : 'Ain Vogue', chkold: 'Change PIN', newpin: 'New PIN', newconfirm: 'Confirm new PIN' };
+  const canCancel = ['chkold', 'newpin', 'newconfirm'].includes(pinMode);
+  app.innerHTML = `<div class="pin"><div class="logo">AV</div><h2>${esc(titles[pinMode] || 'Ain Vogue')}</h2><div class="msg">${esc(busy ? 'Checking…' : pinMsg)}</div>
   <div class="dots" id="dots">${[0, 1, 2, 3].map(i => `<i class="${i < pinBuf.length ? 'on' : ''}"></i>`).join('')}</div>
   <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button onclick="pinKey('${n}')">${n}</button>`).join('')}
-  <button class="blank" ${['chkold', 'newpin', 'newconfirm'].includes(pinMode) ? `onclick="pinCancel()" style="font-size:15px"` : ''}>${['chkold', 'newpin', 'newconfirm'].includes(pinMode) ? 'Cancel' : ''}</button>
+  <button class="blank" ${canCancel ? `onclick="pinCancel()" style="font-size:15px"` : ''}>${canCancel ? 'Cancel' : ''}</button>
   <button onclick="pinKey('0')">0</button><button class="blank" onclick="pinKey('del')">⌫</button></div>
-  ${pinMode === 'unlock' ? `<button class="link" onclick="forgotPin()">Forgot PIN?</button>` : ''}</div>`;
+  ${['unlock', 'login'].includes(pinMode) ? `<button class="link" onclick="forgotPin()">Forgot PIN?</button>` : ''}</div>`;
 }
 function pinKey(k) {
+  if (busy) return;
   if (k === 'del') { pinBuf = pinBuf.slice(0, -1); return renderPin(); }
   if (pinBuf.length >= 4) return;
   pinBuf += k; renderPin();
   if (pinBuf.length === 4) setTimeout(pinDone, 120);
 }
-function pinShake(msg) { pinMsg = msg; pinBuf = ''; renderPin(); const d = document.getElementById('dots'); d.classList.add('shake'); }
-function pinDone() {
+function pinShake(msg) { pinMsg = msg; pinBuf = ''; busy = false; renderPin(); const d = document.getElementById('dots'); if (d) d.classList.add('shake'); }
+function saveAuth(pin, r) { AUTH = { hash: localHash(pin), role: r }; lsSet(LS_AUTH, JSON.stringify(AUTH)); }
+async function pinDone() {
   const p = pinBuf;
   if (pinMode === 'set' || pinMode === 'newpin') { pinFirst = p; pinBuf = ''; pinMode = pinMode === 'set' ? 'confirm' : 'newconfirm'; pinMsg = 'Enter the same PIN again'; return renderPin(); }
-  if (pinMode === 'confirm' || pinMode === 'newconfirm') {
-    if (p !== pinFirst) { pinMode = pinMode === 'confirm' ? 'set' : 'newpin'; return pinShake('PINs did not match. Try again.'); }
-    const wasChange = pinMode === 'newconfirm';
-    S.pin = hashPin(p); save(); pinBuf = ''; pinMode = null; locked = false;
-    if (wasChange) { go('settings'); toast('PIN changed'); } else render();
+  if (pinMode === 'confirm') {
+    if (p !== pinFirst) { pinMode = 'set'; return pinShake('PINs did not match. Try again.'); }
+    busy = true; renderPin();
+    try {
+      const r = await api({ a: 'init', pin: p });
+      if (!r.ok) { helloState = 'ready'; pinMode = 'login'; return pinShake(r.err === 'already set' ? 'Owner PIN already exists. Enter your PIN.' : r.err); }
+      finishLogin(p, 'owner');
+    } catch (e) { pinMode = 'set'; pinShake('No internet. Try again.'); }
+    return;
+  }
+  if (pinMode === 'login') {
+    busy = true; renderPin();
+    try {
+      const r = await api({ a: 'login', pin: p });
+      if (!r.ok) return pinShake(r.err === 'locked' ? 'Too many wrong tries. Wait 15 minutes.' : 'Wrong PIN. Try again.');
+      finishLogin(p, r.role);
+    } catch (e) { pinShake('No internet. Try again.'); }
     return;
   }
   if (pinMode === 'unlock') {
-    if (hashPin(p) === S.pin) { locked = false; pinBuf = ''; pinMode = null; render(); } else pinShake('Wrong PIN. Try again.');
+    if (localHash(p) === AUTH.hash) { PIN = p; locked = false; pinBuf = ''; pinMode = null; pinMsg = ''; render(); sync(); }
+    else pinShake('Wrong PIN. Try again.');
     return;
   }
   if (pinMode === 'chkold') {
-    if (hashPin(p) === S.pin) { pinBuf = ''; pinMode = 'newpin'; pinMsg = 'Enter your new 4-digit PIN'; renderPin(); } else pinShake('Wrong PIN');
+    if (localHash(p) === AUTH.hash) { pinBuf = ''; pinMode = 'newpin'; pinMsg = 'Enter your new 4-digit PIN'; renderPin(); } else pinShake('Wrong PIN');
+    return;
+  }
+  if (pinMode === 'newconfirm') {
+    if (p !== pinFirst) { pinMode = 'newpin'; return pinShake('PINs did not match. Try again.'); }
+    busy = true; renderPin();
+    try {
+      const r = await api({ a: 'sync', pin: PIN, ops: [{ t: 'ownerPin', pin: p }] });
+      const res = r.ok && r.results && r.results[0];
+      if (!res || !res.ok) { pinMode = 'newpin'; return pinShake((res && res.err) || r.err || 'Could not change PIN'); }
+      busy = false; PIN = p; saveAuth(p, 'owner'); pinBuf = ''; pinMode = null; locked = false; go('settings'); toast('PIN changed ✓');
+    } catch (e) { busy = false; pinBuf = ''; pinMode = null; locked = false; go('settings'); toast('No internet. PIN not changed.'); }
   }
 }
-function pinCancel() { pinBuf = ''; pinMode = null; locked = false; go('settings'); }
-function changePin() { locked = true; pinMode = 'chkold'; pinBuf = ''; pinMsg = 'Enter your current PIN'; renderPin(); }
-function forgotPin() {
-  modal(`<h2>Forgot PIN?</h2><p>For safety, the PIN cannot be recovered. The only way is to <b>erase all data on this phone</b> and start again. After that you can use <b>Restore from backup</b> in Settings to get your records back from your last backup file.</p>
-  <label class="f">Type ERASE to confirm</label><input class="in" id="eraseTxt" autocapitalize="characters">
-  <div class="btn2" style="margin-top:14px"><button class="big alt small" onclick="closeModal()">Cancel</button><button class="big red small" onclick="if(document.getElementById('eraseTxt').value.trim().toUpperCase()==='ERASE'){eraseAll()}else{toast('Type ERASE to confirm')}">Erase</button></div>`);
+function finishLogin(p, r) {
+  busy = false; saveAuth(p, r); PIN = p; locked = false; pinBuf = ''; pinMode = null; pinMsg = '';
+  if (D.S && D.role && D.role !== r) { S = null; Q = []; }
+  D.role = r; persist(); V = { name: r === 'owner' ? 'home' : 'day', p: {} }; curDay = today();
+  render(); sync();
 }
-function eraseAll() { closeModal(); S = freshData(); save(); pinMode = null; pinBuf = ''; locked = true; render(); toast('All data erased'); }
+function pinCancel() { pinBuf = ''; pinMode = null; locked = false; go('settings'); }
+function changePin() { if (!online) return toast('Needs internet to change PIN'); locked = true; pinMode = 'chkold'; pinBuf = ''; pinMsg = 'Enter your current PIN'; renderPin(); }
+function forgotPin() {
+  modal(`<h2>Forgot PIN?</h2>
+  <p><b>Staff:</b> ask the owner to set a new staff PIN (Settings → Staff access). Then tap "Sign out this phone" below and log in with the new PIN.</p>
+  <p><b>Owner:</b> open your Google Sheet → Extensions → Apps Script, choose <b>resetOwnerPin</b> at the top and press <b>Run</b>. Then tap "Sign out this phone" and create a new PIN straight away. Your records stay safe in the Google Sheet.</p>
+  <div class="btn2"><button class="big alt small" onclick="closeModal()">Close</button><button class="big red small" onclick="signOut()">Sign out this phone</button></div>`);
+}
+function signOut() {
+  closeModal();
+  if (Q.length && !confirmUnsent()) return;
+  AUTH = null; lsSet(LS_AUTH, null); D = { S: null, Q: [], last: null }; S = null; Q = []; lsSet(LS_DATA, null);
+  PIN = null; locked = true; pinMode = null; pinBuf = ''; pinMsg = ''; helloState = null; render();
+}
+function confirmUnsent() { return window.confirm(Q.length + ' entries have not uploaded yet and will be lost. Sign out anyway?'); }
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden && S.pin && !locked) { locked = true; pinMode = null; pinBuf = ''; closeModal(); render(); }
+  if (document.hidden && AUTH && !locked) { if (dayTimer) { clearTimeout(dayTimer); dayTimer = null; flushDay(); } locked = true; pinMode = null; pinBuf = ''; closeModal(); render(); }
 });
+function flushDay(date) {
+  const d = date || curDay, cur = S && S.days[d];
+  const idx = Q.findIndex((o, i) => i >= inflight && (o.t === 'day' || o.t === 'delday') && (o.rec ? o.rec.date : o.date) === d);
+  const op = cur ? { t: 'day', rec: { date: d, sales: cur.sales, upi: cur.upi, online: cur.online, taken: cur.taken, counted: cur.counted, note: cur.note } } : { t: 'delday', date: d };
+  if (idx >= 0) Q[idx] = op; else Q.push(op);
+  persist(); if (PIN) sync();
+}
 
-/* ---------- Setup (first time) ---------- */
+/* ---------- Setup (owner, first time) ---------- */
+let setupSup = null, setupStaff = null;
 function vSetup() {
+  if (!setupSup) setupSup = S.suppliers.length ? S.suppliers.map(x => ({ ...x })) : [{ id: uid(), name: 'Sakshi', opening: 0 }];
+  if (!setupStaff) setupStaff = S.staff.length ? S.staff.map(x => ({ ...x })) : [{ id: uid(), name: 'Kebi', salary: 0 }, { id: uid(), name: 'Apri', salary: 0 }, { id: uid(), name: 'AJU', salary: 0 }];
   return `${topbar('Starting figures', 'One-time setup')}
   <main>
   <div class="banner">Enter the money you have <b>today</b>, before you start using the app. You can change these later in Settings.</div>
@@ -347,11 +578,11 @@ function vSetup() {
     <label class="f">Loan still to repay (if any)</label><input class="in amt" inputmode="decimal" id="su_loan" placeholder="0" value="${S.start.loan || ''}">
   </div>
   <div class="card"><h3>Amount I owe to suppliers now</h3>
-    ${S.suppliers.map(s => `<label class="f">${esc(s.name)}</label><input class="in amt" inputmode="decimal" id="su_sup_${s.id}" placeholder="0" value="${s.opening || ''}">`).join('')}
+    ${setupSup.map(s => `<label class="f">${esc(s.name)}</label><input class="in amt" inputmode="decimal" id="su_sup_${s.id}" placeholder="0" value="${s.opening || ''}">`).join('')}
     <div class="hint">You can add more suppliers later in People.</div>
   </div>
   <div class="card"><h3>Staff monthly salary</h3>
-    ${S.staff.map(s => `<label class="f">${esc(s.name)}</label><input class="in amt" inputmode="decimal" id="su_st_${s.id}" placeholder="0" value="${s.salary || ''}">`).join('')}
+    ${setupStaff.map(s => `<label class="f">${esc(s.name)}</label><input class="in amt" inputmode="decimal" id="su_st_${s.id}" placeholder="0" value="${s.salary || ''}">`).join('')}
     <div class="hint">Commission is added month by month in People → Staff.</div>
   </div>
   <button class="big" onclick="saveSetup()">Start using the app</button>
@@ -359,11 +590,13 @@ function vSetup() {
 }
 function saveSetup() {
   const g = id => document.getElementById(id).value;
-  S.shop = g('su_name').trim() || 'Ain Vogue';
-  S.start = { date: g('su_date') || today(), shop: num(g('su_shop')), cash: num(g('su_cash')), bank: num(g('su_bank')), loan: num(g('su_loan')) };
-  S.suppliers.forEach(s => { const el = document.getElementById('su_sup_' + s.id); if (el) s.opening = num(el.value); });
-  S.staff.forEach(s => { const el = document.getElementById('su_st_' + s.id); if (el) s.salary = num(el.value); });
-  S.setup = true; save(); go('home'); toast('All set! 🎉');
+  commit({ t: 'set', key: 'shop', value: g('su_name').trim() || 'Ain Vogue' });
+  commit({ t: 'set', key: 'start', value: { date: g('su_date') || today(), shop: num(g('su_shop')), cash: num(g('su_cash')), bank: num(g('su_bank')), loan: num(g('su_loan')) } });
+  commit({ t: 'set', key: 'expenseTypes', value: S.expenseTypes });
+  setupSup.forEach(s => { s.opening = num((document.getElementById('su_sup_' + s.id) || {}).value); commit({ t: 'sup', rec: s }); });
+  setupStaff.forEach(s => { s.salary = num((document.getElementById('su_st_' + s.id) || {}).value); commit({ t: 'staff', rec: s }); });
+  commit({ t: 'set', key: 'setup', value: true });
+  go('home'); toast('All set! 🎉 Now set the staff PIN in Settings.');
 }
 
 /* ---------- Views ---------- */
@@ -375,11 +608,12 @@ VIEWS.home = () => {
   const salDue = sum(S.staff, s => Math.max(0, staffMonth(s, m).due));
   const loan = loanBal();
   const done = !!S.days[t];
-  const days = S.lastBackup ? Math.floor((Date.now() - S.lastBackup) / 86400000) : null;
-  const recent = [...S.tx].sort((a, b) => (b.date + b.ts).localeCompare(a.date + a.ts)).slice(0, 5);
+  const pd = pendingDates(), rq = S.requests.filter(r => !r.local);
+  const recent = [...S.tx].sort((a, b) => (b.date + (b.created || '')).localeCompare(a.date + (a.created || ''))).slice(0, 5);
   return `${topbar(S.shop, fmtD(t))}
   <main>
-  ${days === null || days >= 7 ? `<div class="banner">💾 ${days === null ? 'No backup yet.' : 'Last backup was ' + days + ' days ago.'} Your records are only on this phone. <a href="#" onclick="backup();return false" style="color:inherit;font-weight:700">Backup now</a></div>` : ''}
+  ${pd.length || rq.length ? `<button class="banner" style="width:100%;text-align:left" onclick="go('review')">🔔 <b>Check staff entries:</b> ${pd.length ? pd.length + ' day' + (pd.length > 1 ? 's' : '') + ' to accept' : ''}${pd.length && rq.length ? ' · ' : ''}${rq.length ? rq.length + ' change request' + (rq.length > 1 ? 's' : '') : ''} ›</button>` : ''}
+  ${!S.staffPinSet ? `<button class="banner" style="width:100%;text-align:left" onclick="go('settings')">👤 Staff PIN not set yet. Tap to set it in Settings ›</button>` : ''}
   <div class="bal">
     <div><div class="ic">🏪</div><div class="l">Shop cash</div><div class="v">${inr(b.shop)}</div></div>
     <div><div class="ic">👛</div><div class="l">My cash</div><div class="v">${inr(b.cash)}</div></div>
@@ -390,81 +624,137 @@ VIEWS.home = () => {
     <div class="row" onclick="peopleTab='sup';go('people')"><span>I owe suppliers</span><span class="r neg">${inr(owed)} ›</span></div>
     <div class="row" onclick="peopleTab='staff';staffMonthSel=thisMonth();go('people')"><span>Salary still to pay (${monthName(m).split(' ')[0]})</span><span class="r neg">${inr(salDue)} ›</span></div>
     ${loan ? `<div class="row"><span>Loan to repay</span><span class="r neg">${inr(loan)}</span></div>` : ''}
+    ${pd.length ? `<div class="hint">Includes staff entries still waiting for your acceptance.</div>` : ''}
   </div>
-  <button class="big ${done ? 'alt' : ''}" onclick="curDay=today();go('day')">${done ? '✓ Today\'s shop entry done — view / edit' : '🏪 Today\'s Shop Entry'}</button>
+  <button class="big ${done ? 'alt' : ''}" onclick="curDay=today();go('day')">${done ? '✓ Today\'s shop entry — view / edit' : '🏪 Today\'s Shop Entry'}</button>
   <button class="big ${done ? '' : 'alt'}" onclick="go('add')">➕ Add Payment / Receipt</button>
   <div class="sec">Recent entries</div>
   <div class="card">${recent.length ? recent.map(txItem).join('') : '<div class="empty">No entries yet</div>'}
   ${recent.length ? `<button class="big alt small" style="margin:10px 0 0" onclick="histMonth=thisMonth();go('history')">See all entries</button>` : ''}</div>
   </main>`;
 };
+function pendPill(t) { return t.status === 'pending' ? ' <span class="pill b">Pending</span>' : ''; }
 function txItem(t) {
-  const k = K[t.k]; const sign = k.g === 'in' ? '+' : k.g === 'out' ? '−' : '';
+  const k = kOf(t); const sign = k.g === 'in' ? '+' : k.g === 'out' ? '−' : '';
   const cls = k.g === 'in' ? 'pos' : k.g === 'out' ? 'neg' : '';
-  return `<div class="item" onclick="go('form',{k:'${t.k}',id:'${t.id}'})"><div style="font-size:22px">${k.ic}</div><div class="t"><b>${esc(txLabel(t))}</b><span>${fmtDshort(t.date)} · ${esc(txFlow(t))}${t.note ? ' · ' + esc(t.note) : ''}</span></div><div class="a ${cls}">${sign}${inr(t.amt)}</div></div>`;
+  const click = isOwner() ? `onclick="go('form',{k:'${t.k}',id:'${t.id}'})"` : '';
+  return `<div class="item" ${click}><div style="font-size:22px">${k.ic}</div><div class="t"><b>${esc(txLabel(t))}${pendPill(t)}</b><span>${fmtDshort(t.date)} · ${esc(txFlow(t))}${t.note ? ' · ' + esc(t.note) : ''}${t.by === 'staff' && isOwner() ? ' · by staff' : ''}</span></div><div class="a ${cls}">${sign}${inr(t.amt)}</div></div>`;
 }
 
-/* ----- Shop day ----- */
+/* ----- Review (owner) ----- */
+VIEWS.review = () => {
+  const L = ledger(); const pd = pendingDates().reverse(); const rq = S.requests;
+  return `${topbar('Check staff entries', '', "go('home')")}
+  <main>
+  ${rq.length ? `<div class="sec">Change requests (after you accepted)</div>
+  ${rq.map(r => `<div class="card"><div class="muted">${fmtD(r.date)} · requested ${esc(r.requested)}</div>
+    <div style="margin:8px 0 12px;font-weight:600">${esc(r.summary)}</div>
+    ${r.local ? '<div class="muted">Uploading…</div>' : `<div class="btn2"><button class="big alt small" onclick="decide('${r.id}',false)">✕ Reject</button><button class="big green small" onclick="decide('${r.id}',true)">✓ Approve</button></div>`}</div>`).join('')}` : ''}
+  ${pd.length ? `<div class="sec">Days to accept</div>` : ''}
+  ${pd.map(d => {
+    const day = S.days[d] || {}; const x = L.days[d] || { open: openOn(L, d) };
+    const txs = S.tx.filter(t => t.date === d && (t.from === 'shop' || t.to === 'shop'));
+    const cs = r2(num(day.sales) - num(day.upi) - num(day.online));
+    return `<div class="card"><h3>${fmtDshort(d)} ${day.by === 'staff' ? '<span class="pill b">by staff</span>' : ''}</h3>
+    <div class="row"><span>Opening cash</span><span class="r">${inr(x.open.shop)}</span></div>
+    <div class="row"><span>Total sales</span><span class="r">${inr(day.sales)}</span></div>
+    <div class="row"><span>UPI / Online</span><span>${inr(day.upi)} / ${inr(day.online)}</span></div>
+    <div class="row"><span>Cash sales</span><span class="r">${inr(cs)}</span></div>
+    ${txs.map(t => `<div class="row"><span>− ${esc(txLabel(t))}${pendPill(t)}</span><span class="r">${inr(t.amt)}</span></div>`).join('')}
+    <div class="row"><span><b>Cash given to you</b></span><span class="r">${inr(day.taken)}</span></div>
+    <div class="row"><span>Should be in drawer</span><span class="r">${inr(x.expected !== null && x.expected !== undefined ? x.expected : (x.close ? x.close.shop : 0))}</span></div>
+    <div class="row"><span>Counted cash</span><span class="r">${day.counted === null || day.counted === undefined ? '—' : inr(day.counted)}</span></div>
+    ${x.adj ? `<div class="row"><span>${x.adj < 0 ? 'Short' : 'Extra'}</span><span class="r ${x.adj < 0 ? 'neg' : 'pos'}">${inr(Math.abs(x.adj))}</span></div>` : ''}
+    ${day.note ? `<div class="hint">Note: ${esc(day.note)}</div>` : ''}
+    <div class="btn2" style="margin-top:12px"><button class="big alt small" onclick="curDay='${d}';go('day')">Open day</button><button class="big green small" onclick="acceptDay('${d}')">✓ Accept day</button></div>
+    <div class="hint">Accepting confirms you received ${inr(day.taken)} cash. After this, staff changes need your approval.</div></div>`;
+  }).join('')}
+  ${!pd.length && !rq.length ? '<div class="card empty">All checked ✓ Nothing waiting.</div>' : ''}
+  </main>`;
+};
+function acceptDay(d) { commit({ t: 'accept', date: d }); toast('Day accepted ✓'); render(); }
+function decide(id, approve) { commit({ t: 'decide', id, approve }); toast(approve ? 'Approved ✓' : 'Rejected'); render(); }
+
+/* ----- Shop day (owner + staff) ----- */
 VIEWS.day = () => {
   const d = curDay; const day = S.days[d] || {};
   const L = ledger(); const open = openOn(L, d).shop;
+  const staffMode = !isOwner();
+  const acc = dayAccepted(d);
+  const lockedForStaff = staffMode && acc;
   const shopTx = S.tx.filter(t => t.date === d && (t.from === 'shop' || t.to === 'shop'));
   const exps = shopTx.filter(t => t.k === 'shop_exp');
-  const others = shopTx.filter(t => t.k !== 'shop_exp');
+  const advs = shopTx.filter(t => t.k === 'advance');
+  const others = shopTx.filter(t => t.k !== 'shop_exp' && t.k !== 'advance');
+  const reqs = S.requests.filter(r => r.date === d);
+  const pendingHere = day.status === 'pending' || shopTx.some(t => t.status === 'pending');
   const v = x => (x === undefined || x === null || x === '') ? '' : x;
-  return `${topbar('Shop Day', d === today() ? 'Today · ' + fmtD(d) : fmtD(d))}
+  const canDel = t => isOwner() || t.by === 'staff';
+  let status = '';
+  if (staffMode) status = acc ? `<div class="banner">✓ <b>Accepted by owner.</b> You can still correct figures, but changes are sent to the owner for approval.</div>` : (S.days[d] || shopTx.length ? `<div class="banner" style="background:var(--blueSoft);border-color:#bcd0ee;color:var(--blue)">⏳ Saved. Waiting for owner to accept.</div>` : '');
+  else if (pendingHere) status = `<div class="banner" style="background:var(--blueSoft);border-color:#bcd0ee;color:var(--blue)">👤 Staff entries on this day are waiting for you. <button class="big green small" style="margin:10px 0 0" onclick="acceptDay('${d}')">✓ Accept day</button></div>`;
+  else if (S.days[d] && acc && day.by === 'staff') status = `<div class="muted" style="margin:-4px 0 10px">✓ Accepted</div>`;
+  const staffOpts = S.staff.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  return `${topbar('Shop Day', (d === today() ? 'Today · ' : '') + fmtD(d))}
   <main>
+  ${status}
+  ${reqs.length ? `<div class="card"><h3>Waiting for owner's approval</h3>${reqs.map(r => `<div class="row"><span>${esc(r.summary)}</span></div>`).join('')}</div>` : ''}
   <div class="card">
     <label class="f" style="margin-top:0">Date</label>
-    <input class="in" type="date" value="${d}" min="${S.start.date}" max="${today()}" onchange="if(this.value){curDay=this.value;render()}">
+    <input class="in" type="date" value="${d}" min="${S.start.date}" max="${today()}" onchange="if(this.value){if(dayTimer){clearTimeout(dayTimer);dayTimer=null;flushDay();}curDay=this.value;render()}">
   </div>
   <div class="card">
     <div class="row"><span>🔓 Opening cash in drawer</span><span class="r">${inr(open)}</span></div>
     <div class="hint">Carried from the previous day's closing cash.</div>
   </div>
   <div class="card"><h3>1. Sales (from POS)</h3>
-    <label class="f">Total sales</label><input class="in amt" inputmode="decimal" id="d_sales" placeholder="0" value="${v(day.sales)}" oninput="dayCalc(true)">
-    <label class="f">UPI received</label><input class="in amt" inputmode="decimal" id="d_upi" placeholder="0" value="${v(day.upi)}" oninput="dayCalc(true)">
-    <label class="f">Online sales received</label><input class="in amt" inputmode="decimal" id="d_online" placeholder="0" value="${v(day.online)}" oninput="dayCalc(true)">
+    <label class="f">Total sales</label><input class="in amt" inputmode="decimal" id="d_sales" placeholder="0" value="${v(day.sales)}" oninput="dayCalc(${!lockedForStaff})">
+    <label class="f">UPI received</label><input class="in amt" inputmode="decimal" id="d_upi" placeholder="0" value="${v(day.upi)}" oninput="dayCalc(${!lockedForStaff})">
+    <label class="f">Online sales received</label><input class="in amt" inputmode="decimal" id="d_online" placeholder="0" value="${v(day.online)}" oninput="dayCalc(${!lockedForStaff})">
     <div class="calc"><div class="row"><span>Cash sales</span><span class="r" id="c_cash">₹0</span></div>
     <div class="hint">= Total − UPI − Online. UPI &amp; Online go to Bank automatically.</div></div>
     <div class="warn" id="c_warn" style="display:none">UPI + Online is more than total sales. Please check.</div>
   </div>
   <div class="card"><h3>2. Expenses paid from shop cash</h3>
-    ${exps.length ? exps.map(t => `<div class="item"><div class="t"><b>${esc(t.cat || 'Shop expense')}</b>${t.note ? `<span>${esc(t.note)}</span>` : ''}</div><div class="a">${inr(t.amt)}</div><button class="x" onclick="delTx('${t.id}')">×</button></div>`).join('') : '<div class="muted">No expenses added yet.</div>'}
+    ${exps.length ? exps.map(t => `<div class="item"><div class="t"><b>${esc(t.cat || 'Shop expense')}${pendPill(t)}</b>${t.note ? `<span>${esc(t.note)}</span>` : ''}</div><div class="a">${inr(t.amt)}</div>${canDel(t) ? `<button class="x" onclick="delTx('${t.id}')">×</button>` : ''}</div>`).join('') : '<div class="muted">No expenses added yet.</div>'}
     <div class="addrow">
       <select class="in" id="e_cat" onchange="if(this.value==='__new')newExpType('day')">${S.expenseTypes.map(c => `<option>${esc(c)}</option>`).join('')}<option value="__new">➕ New type…</option></select>
       <input class="in" inputmode="decimal" id="e_amt" placeholder="₹ Amount">
       <button onclick="addDayExp()">Add</button>
     </div>
-    ${others.length ? `<div class="sec" style="margin-top:14px">Other shop cash movements today</div>${others.map(txItem).join('')}` : ''}
   </div>
-  <div class="card"><h3>3. Cash I took from shop</h3>
-    <input class="in amt" inputmode="decimal" id="d_taken" placeholder="0" value="${v(day.taken)}" oninput="dayCalc(true)">
-    <div class="hint">This moves to "My cash".</div>
+  <div class="card"><h3>3. Salary advance from shop cash</h3>
+    ${advs.length ? advs.map(t => `<div class="item"><div class="t"><b>${esc(staffNameOf(t.staff, t) || 'Staff')}${pendPill(t)}</b><span>Advance for ${t.month ? monthName(t.month) : ''}</span></div><div class="a">${inr(t.amt)}</div>${canDel(t) ? `<button class="x" onclick="delTx('${t.id}')">×</button>` : ''}</div>`).join('') : '<div class="muted">No advance given.</div>'}
+    ${S.staff.length ? `<div class="addrow"><select class="in" id="a_staff">${staffOpts}</select><input class="in" inputmode="decimal" id="a_amt" placeholder="₹ Amount"><button onclick="addDayAdv()">Add</button></div>` : '<div class="hint">No staff list yet.</div>'}
+    ${others.length ? `<div class="sec" style="margin-top:14px">Other shop cash movements</div>${others.map(txItem).join('')}` : ''}
   </div>
-  <div class="card"><h3>4. Closing cash</h3>
+  <div class="card"><h3>4. ${staffMode ? 'Cash given to owner' : 'Cash I took from shop'}</h3>
+    <input class="in amt" inputmode="decimal" id="d_taken" placeholder="0" value="${v(day.taken)}" oninput="dayCalc(${!lockedForStaff})">
+    <div class="hint">${staffMode ? 'The owner confirms this when she accepts the day.' : 'This moves to "My cash".'}</div>
+  </div>
+  <div class="card"><h3>5. Closing cash</h3>
     <div class="calc" style="margin-top:0">
       <div class="row"><span>Opening cash</span><span class="r">${inr(open)}</span></div>
       <div class="row"><span>+ Cash sales</span><span class="r" id="c_cash2">₹0</span></div>
-      <div class="row"><span>− Shop expenses &amp; payments</span><span class="r" id="c_exp">₹0</span></div>
-      <div class="row"><span>− Cash I took</span><span class="r" id="c_taken">₹0</span></div>
+      <div class="row"><span>− Expenses, advances &amp; payments</span><span class="r" id="c_exp">₹0</span></div>
+      <div class="row"><span>− Cash ${staffMode ? 'given to owner' : 'I took'}</span><span class="r" id="c_taken">₹0</span></div>
       <div class="row tot"><span>Cash that should be in drawer</span><span class="r" id="c_expected">₹0</span></div>
     </div>
     <label class="f">Actual cash counted in drawer</label>
-    <input class="in amt" inputmode="decimal" id="d_counted" placeholder="Count and type here" value="${v(day.counted)}" oninput="dayCalc(true)">
+    <input class="in amt" inputmode="decimal" id="d_counted" placeholder="Count and type here" value="${v(day.counted)}" oninput="dayCalc(${!lockedForStaff})">
     <div id="c_diff" style="margin-top:10px"></div>
-    <label class="f">Note (optional)</label><input class="in" id="d_note" value="${esc(day.note || '')}" oninput="dayCalc(true)">
+    <label class="f">Note (optional)</label><input class="in" id="d_note" value="${esc(day.note || '')}" oninput="dayCalc(${!lockedForStaff})">
   </div>
-  <div id="c_saved" class="muted" style="text-align:center;margin-bottom:8px">${S.days[d] ? '✓ Saved' : 'Everything saves automatically as you type'}</div>
-  <button class="big" onclick="dayDone()">Done</button>
-  ${S.days[d] ? `<button class="big alt small" onclick="delDay()">Clear this day's sales entry</button>` : ''}
+  ${lockedForStaff ? `<button class="big" onclick="sendDayChange()">Send changes for approval</button>` :
+    `<div id="c_saved" class="muted" style="text-align:center;margin-bottom:8px">${S.days[d] ? '✓ Saved' : 'Everything saves automatically as you type'}</div><button class="big" onclick="dayDone()">Done</button>`}
+  ${S.days[d] && !lockedForStaff ? `<button class="big alt small" onclick="delDay()">Clear this day's sales entry</button>` : ''}
   </main>`;
 };
 function dayVals() {
   const g = id => document.getElementById(id).value;
   return { sales: g('d_sales'), upi: g('d_upi'), online: g('d_online'), taken: g('d_taken'), counted: g('d_counted'), note: g('d_note') };
 }
+function dayRec(f) { return { date: curDay, sales: num(f.sales), upi: num(f.upi), online: num(f.online), taken: num(f.taken), counted: f.counted.trim() === '' ? null : num(f.counted), note: f.note.trim() }; }
 function dayCalc(doSave) {
   const d = curDay; const f = dayVals();
   const open = openOn(ledger(), d).shop;
@@ -486,22 +776,55 @@ function dayCalc(doSave) {
   }
   if (doSave) {
     const hasAny = ['sales', 'upi', 'online', 'taken', 'counted', 'note'].some(k => String(f[k]).trim() !== '');
-    if (hasAny) S.days[d] = { sales: num(f.sales), upi: num(f.upi), online: num(f.online), taken: num(f.taken), counted: f.counted.trim() === '' ? null : num(f.counted), note: f.note.trim() };
-    else delete S.days[d];
-    save(); set('c_saved', hasAny ? '✓ Saved' : 'Everything saves automatically as you type');
+    if (hasAny) commitDayDebounced(dayRec(f));
+    else if (S.days[d]) commitDayDebounced(null, d);
+    set('c_saved', hasAny ? '✓ Saved' : 'Everything saves automatically as you type');
   }
+}
+function sendDayChange() {
+  const rec = dayRec(dayVals());
+  const r = commit({ t: 'day', rec });
+  if (r === 'req') { toast('Sent to owner for approval'); render(); }
+}
+function addGuard(cb) {
+  if (!isOwner() && dayAccepted(curDay)) ask('Day already accepted', 'The owner has accepted this day. This change will be sent to her for approval.', 'Send for approval', '', cb);
+  else cb();
 }
 function addDayExp() {
   const cat = document.getElementById('e_cat').value; const amt = num(document.getElementById('e_amt').value);
   if (cat === '__new') return newExpType('day');
   if (amt <= 0) return toast('Enter the amount');
-  dayCalc(true);
-  S.tx.push({ id: uid(), ts: Date.now().toString(36), date: curDay, k: 'shop_exp', amt, from: 'shop', cat, note: '' });
-  save(); render(); toast('Expense added');
+  addGuard(() => {
+    if (!(!isOwner() && dayAccepted(curDay))) dayCalc(true);
+    const r = commit({ t: 'tx', rec: { id: uid(), date: curDay, k: 'shop_exp', amt, from: 'shop', cat, note: '' } });
+    render(); toast(r === 'req' ? 'Sent for approval' : 'Expense added');
+  });
 }
-function dayDone() { dayCalc(true); go('home'); toast(S.days[curDay] ? 'Shop day saved ✓' : 'Nothing entered'); }
-function delDay() { ask('Clear sales entry?', 'This removes the sales, cash taken and counted cash for ' + fmtD(curDay) + '. Expenses stay.', 'Clear', 'red', () => { delete S.days[curDay]; save(); render(); toast('Cleared'); }); }
-function delTx(id) { const t = S.tx.find(x => x.id === id); ask('Delete entry?', esc(txLabel(t)) + ' — ' + inr(t.amt), 'Delete', 'red', () => { S.tx = S.tx.filter(x => x.id !== id); save(); render(); toast('Deleted'); }); }
+function addDayAdv() {
+  const staff = document.getElementById('a_staff').value; const amt = num(document.getElementById('a_amt').value);
+  if (amt <= 0) return toast('Enter the amount');
+  addGuard(() => {
+    if (!(!isOwner() && dayAccepted(curDay))) dayCalc(true);
+    const r = commit({ t: 'tx', rec: { id: uid(), date: curDay, k: 'advance', amt, from: 'shop', staff, month: curDay.slice(0, 7), note: '' } });
+    render(); toast(r === 'req' ? 'Sent for approval' : 'Advance added');
+  });
+}
+function dayDone() { dayCalc(true); if (dayTimer) { clearTimeout(dayTimer); dayTimer = null; flushDay(); } if (isOwner()) go('home'); else go('past'); toast(S.days[curDay] ? 'Shop day saved ✓' : 'Nothing entered'); }
+function delDay() {
+  ask('Clear sales entry?', 'This removes the sales, cash given and counted cash for ' + fmtD(curDay) + '. Expenses stay.', 'Clear', 'red', () => {
+    if (dayTimer) { clearTimeout(dayTimer); dayTimer = null; }
+    const r = commit({ t: 'delday', date: curDay }); render(); toast(r === 'req' ? 'Sent for approval' : 'Cleared');
+  });
+}
+function delTx(id) {
+  const t = S.tx.find(x => x.id === id);
+  const needReq = !isOwner() && dayAccepted(t.date);
+  ask(needReq ? 'Ask owner to delete?' : 'Delete entry?', esc(txLabel(t)) + ' — ' + inr(t.amt) + (needReq ? '<br>This day is accepted, so the owner must approve.' : ''), needReq ? 'Send request' : 'Delete', 'red', () => {
+    const r = commit({ t: 'deltx', id });
+    if (V.name === 'form') go('history'); else render();
+    toast(r === 'req' ? 'Sent for approval' : 'Deleted');
+  });
+}
 function newExpType(from) {
   window._netFrom = from;
   modal(`<h2>New expense type</h2><input class="in" id="net" placeholder="e.g. Packing material"><div class="btn2" style="margin-top:14px"><button class="big alt small" onclick="closeModal();render()">Cancel</button><button class="big small" onclick="saveExpType()">Add</button></div>`);
@@ -509,15 +832,33 @@ function newExpType(from) {
 }
 function saveExpType() {
   const v = document.getElementById('net').value.trim(); if (!v) return toast('Type a name');
-  if (!S.expenseTypes.includes(v)) S.expenseTypes.splice(Math.max(0, S.expenseTypes.length - 1), 0, v);
-  save(); closeModal();
-  if (window._netFrom === 'day') { dayCalc(true); render(); const s = document.getElementById('e_cat'); if (s) s.value = v; }
+  closeModal();
+  if (window._netFrom === 'day' && document.getElementById('d_sales') && !(!isOwner() && dayAccepted(curDay))) dayCalc(true);
+  if (!S.expenseTypes.includes(v)) {
+    if (isOwner()) { const list = S.expenseTypes.slice(); list.splice(Math.max(0, list.length - 1), 0, v); commit({ t: 'set', key: 'expenseTypes', value: list }); }
+    else commit({ t: 'set', key: 'expenseTypes', value: [v] });
+  }
+  if (window._netFrom === 'day') { render(); const s = document.getElementById('e_cat'); if (s) s.value = v; }
   else if (window._netFrom === 'form') { const s = document.getElementById('f_cat'); if (s) { s.innerHTML = catOptions(v); } }
   else render();
 }
 function catOptions(sel) { return S.expenseTypes.map(c => `<option ${c === sel ? 'selected' : ''}>${esc(c)}</option>`).join('') + '<option value="__new">➕ New type…</option>'; }
 
-/* ----- Add menu ----- */
+/* ----- Past days (staff) ----- */
+VIEWS.past = () => {
+  const L = ledger();
+  const dates = [...new Set([...Object.keys(S.days), ...S.tx.map(t => t.date)])].sort().reverse().slice(0, 90);
+  return `${topbar('Past days', S.shop)}
+  <main>
+  ${dates.length ? `<div class="card">${dates.map(d => {
+    const day = S.days[d]; const acc = dayAccepted(d); const pend = (day && day.status === 'pending') || S.tx.some(t => t.date === d && t.status === 'pending');
+    const x = L.days[d];
+    return `<div class="item" onclick="curDay='${d}';go('day')"><div style="font-size:22px">🏪</div><div class="t"><b>${fmtDshort(d)} ${acc ? '<span class="pill g">Accepted</span>' : pend ? '<span class="pill b">Waiting</span>' : ''}</b><span>Sales ${inr(day ? day.sales : 0)}${x ? ' · Closing ' + inr(x.close.shop) : ''}${x && x.adj ? ' · ' + (x.adj < 0 ? 'Short ' : 'Extra ') + inr(Math.abs(x.adj)) : ''}</span></div><div class="a">›</div></div>`;
+  }).join('')}</div>` : '<div class="card empty">No days entered yet</div>'}
+  </main>`;
+};
+
+/* ----- Add menu (owner) ----- */
 VIEWS.add = () => {
   const tile = k => `<button class="tile" onclick="go('form',{k:'${k}'})"><span class="e">${K[k].ic}</span>${K[k].l}</button>`;
   return `${topbar('Add Payment / Receipt', 'What happened?')}
@@ -533,12 +874,13 @@ VIEWS.add = () => {
   </main>`;
 };
 
-/* ----- Entry form ----- */
+/* ----- Entry form (owner) ----- */
 let F = {};
 VIEWS.form = (p) => {
   const k = K[p.k]; const t = p.id ? S.tx.find(x => x.id === p.id) : null;
-  if (p.id && !t) return VIEWS.home();
-  F = t ? { ...t } : { k: p.k, date: p.date || today(), amt: '', from: k.from || (k.fromOpts ? k.fromOpts[0] : k.g === 'out' ? k.def : null), to: k.to || (k.g === 'in' ? k.def : null), sup: p.sup || (k.sup && S.suppliers[0] ? S.suppliers[0].id : null), staff: p.staff || (k.staff && S.staff[0] ? S.staff[0].id : null), month: thisMonth(), cat: k.cat ? S.expenseTypes[0] : null, note: '' };
+  if (!k || (p.id && !t)) return VIEWS.home();
+  F = t ? { ...t } : { k: p.k, date: p.date || today(), amt: '', from: k.from || (k.fromOpts ? k.fromOpts[0] : k.g === 'out' ? k.def : null), to: k.to || (k.g === 'in' ? k.def : null), sup: p.sup || (k.sup && S.suppliers[0] ? S.suppliers[0].id : null), staff: p.staff || (k.staff && S.staff[0] ? S.staff[0].id : null), month: p.month || thisMonth(), cat: k.cat ? S.expenseTypes[0] : null, note: '' };
+  if (p.amt && !t) F.amt = p.amt;
   const chips = (field, opts) => `<div class="chips">${opts.map(a => `<button class="chip ${F[field] === a ? 'on' : ''}" onclick="F.${field}='${a}';this.parentNode.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));this.classList.add('on')">${ACC_IC[a]} ${ACC[a]}</button>`).join('')}</div>`;
   let extra = '';
   if (k.sup) extra += S.suppliers.length ? `<label class="f">Supplier</label><select class="in" id="f_sup">${S.suppliers.map(s => `<option value="${s.id}" ${F.sup === s.id ? 'selected' : ''}>${esc(s.name)} (owe ${inr(supBal(s))})</option>`).join('')}</select>` : `<div class="warn">Add a supplier first in People → Suppliers.</div>`;
@@ -551,7 +893,7 @@ VIEWS.form = (p) => {
   if (k.fromOpts) flow = `<label class="f">Cash from</label>${chips('from', k.fromOpts)}`;
   if (k.from && k.to) flow = `<div class="calc">${ACC_IC[k.from]} ${ACC[k.from]} → ${ACC_IC[k.to]} ${ACC[k.to]}</div>`;
   const backJs = p.back === 'supplier' ? `go('supplier',{id:'${F.sup}'})` : p.back === 'staff' ? `go('staff',{id:'${F.staff}'})` : t ? "go('history')" : "go('add')";
-  return `${topbar((t ? 'Edit: ' : '') + k.l, k.hint || '', backJs)}
+  return `${topbar((t ? 'Edit: ' : '') + k.l, (t && t.by === 'staff' ? 'Entered by staff' : (k.hint || '')), backJs)}
   <main><div class="card">
     <label class="f" style="margin-top:0">Amount (₹)</label>
     <input class="in amt" inputmode="decimal" id="f_amt" placeholder="0" value="${F.amt}">
@@ -570,15 +912,14 @@ function saveForm() {
   const amt = num(g('f_amt')); if (amt <= 0) return toast('Enter the amount');
   const date = g('f_date'); if (!date) return toast('Choose the date');
   if (date < S.start.date) return toast('Date is before the start date');
-  const t = { id: F.id || uid(), ts: F.ts || Date.now().toString(36), date, k: F.k, amt, note: (g('f_note') || '').trim() };
+  const t = { id: F.id || uid(), date, k: F.k, amt, note: (g('f_note') || '').trim() };
   if (k.g === 'out' || k.fromOpts || k.from) t.from = k.from || F.from;
   if (k.g === 'in' || k.to) t.to = k.to || F.to;
   if (k.sup) { t.sup = g('f_sup'); if (!t.sup) return toast('Choose a supplier'); }
   if (k.staff) { t.staff = g('f_staff'); t.month = g('f_month') || thisMonth(); if (!t.staff) return toast('Choose staff'); }
   if (k.cat) { t.cat = g('f_cat'); if (t.cat === '__new') return toast('Choose expense type'); }
-  const i = S.tx.findIndex(x => x.id === t.id);
-  if (i >= 0) S.tx[i] = t; else S.tx.push(t);
-  save(); const wasEdit = i >= 0;
+  const wasEdit = S.tx.some(x => x.id === t.id);
+  commit({ t: 'tx', rec: t });
   if (V.p.back === 'supplier') go('supplier', { id: t.sup });
   else if (V.p.back === 'staff') go('staff', { id: t.staff });
   else go(wasEdit ? 'history' : 'home');
@@ -587,7 +928,7 @@ function saveForm() {
   else toast(wasEdit ? 'Updated ✓' : 'Saved ✓');
 }
 
-/* ----- People ----- */
+/* ----- People (owner) ----- */
 VIEWS.people = () => {
   let body = '';
   if (peopleTab === 'sup') {
@@ -609,7 +950,7 @@ VIEWS.people = () => {
 };
 VIEWS.supplier = (p) => {
   const s = S.suppliers.find(x => x.id === p.id); if (!s) return VIEWS.people();
-  const txs = S.tx.filter(t => t.sup === s.id).sort((a, b) => (a.date + a.ts).localeCompare(b.date + b.ts));
+  const txs = S.tx.filter(t => t.sup === s.id).sort((a, b) => (a.date + (a.created || '')).localeCompare(b.date + (b.created || '')));
   let run = num(s.opening);
   const rows = txs.map(t => { run = r2(run + (t.k === 'credit_buy' ? num(t.amt) : -num(t.amt))); return { t, run }; }).reverse();
   return `${topbar(s.name, 'Supplier', "peopleTab='sup';go('people')")}
@@ -618,7 +959,7 @@ VIEWS.supplier = (p) => {
   <div class="btn2"><button class="big alt small" onclick="go('form',{k:'credit_buy',sup:'${s.id}',back:'supplier'})">📦 Credit purchase</button><button class="big small" onclick="go('form',{k:'sup_pay',sup:'${s.id}',back:'supplier'})">🤝 Pay</button></div>
   <div class="sec">History</div>
   <div class="card">
-    ${rows.map(({ t, run }) => `<div class="item" onclick="go('form',{k:'${t.k}',id:'${t.id}',back:'supplier'})"><div style="font-size:20px">${K[t.k].ic}</div><div class="t"><b>${t.k === 'credit_buy' ? 'Purchase on credit' : 'Paid (' + ACC[t.from] + ')'}</b><span>${fmtD(t.date)}${t.note ? ' · ' + esc(t.note) : ''} · Balance ${inr(run)}</span></div><div class="a ${t.k === 'credit_buy' ? 'neg' : 'pos'}">${t.k === 'credit_buy' ? '+' : '−'}${inr(t.amt)}</div></div>`).join('')}
+    ${rows.map(({ t, run }) => `<div class="item" onclick="go('form',{k:'${t.k}',id:'${t.id}',back:'supplier'})"><div style="font-size:20px">${kOf(t).ic}</div><div class="t"><b>${t.k === 'credit_buy' ? 'Purchase on credit' : 'Paid (' + ACC[t.from] + ')'}</b><span>${fmtD(t.date)}${t.note ? ' · ' + esc(t.note) : ''} · Balance ${inr(run)}</span></div><div class="a ${t.k === 'credit_buy' ? 'neg' : 'pos'}">${t.k === 'credit_buy' ? '+' : '−'}${inr(t.amt)}</div></div>`).join('')}
     <div class="item"><div style="font-size:20px">📌</div><div class="t"><b>Starting balance</b><span>${fmtD(S.start.date)}</span></div><div class="a">${inr(s.opening)}</div></div>
   </div>
   <button class="big alt small" onclick="editSupplier('${s.id}')">Edit supplier</button>
@@ -631,42 +972,37 @@ function editSupplier(id) {
   <label class="f">Name</label><input class="in" id="m_name" value="${esc(s.name)}">
   <label class="f">Amount owed on start date (${fmtD(S.start.date)})</label><input class="in amt" inputmode="decimal" id="m_open" value="${s.opening || ''}" placeholder="0">
   <div class="btn2" style="margin-top:14px"><button class="big alt small" onclick="closeModal()">Cancel</button><button class="big small" onclick="saveSupplier('${id || ''}')">Save</button></div>
-  ${id && !used ? `<button class="big red small" onclick="S.suppliers=S.suppliers.filter(x=>x.id!=='${id}');save();closeModal();peopleTab='sup';go('people')">Delete supplier</button>` : ''}`);
+  ${id && !used ? `<button class="big red small" onclick="commit({t:'delsup',id:'${id}'});closeModal();peopleTab='sup';go('people')">Delete supplier</button>` : ''}`);
 }
 function saveSupplier(id) {
   const name = document.getElementById('m_name').value.trim(); if (!name) return toast('Enter name');
   const opening = num(document.getElementById('m_open').value);
-  if (id) Object.assign(S.suppliers.find(x => x.id === id), { name, opening }); else S.suppliers.push({ id: uid(), name, opening });
-  save(); closeModal(); render(); toast('Saved');
+  commit({ t: 'sup', rec: { id: id || uid(), name, opening } });
+  closeModal(); render(); toast('Saved');
 }
 VIEWS.staff = (p) => {
   const s = S.staff.find(x => x.id === p.id); if (!s) return VIEWS.people();
   const m = staffMonthSel; const x = staffMonth(s, m);
-  const txs = [...x.txs].sort((a, b) => (b.date + b.ts).localeCompare(a.date + a.ts));
+  const txs = [...x.txs].sort((a, b) => (b.date + (b.created || '')).localeCompare(a.date + (a.created || '')));
   return `${topbar(s.name, 'Staff · ' + monthName(m), "peopleTab='staff';go('people')")}
   <main>
   <div class="card"><label class="f" style="margin-top:0">Month</label><input class="in" type="month" value="${m}" onchange="if(this.value){staffMonthSel=this.value;render()}"></div>
   <div class="card">
     <div class="row"><span>Monthly salary</span><span class="r">${inr(s.salary)}</span></div>
-    <div class="row"><span>+ Sales commission this month</span><span style="width:130px"><input class="in" style="text-align:right;padding:8px 10px" inputmode="decimal" value="${x.com || ''}" placeholder="0" onchange="S.commission['${s.id}|${m}']=num(this.value);save();render()"></span></div>
+    <div class="row"><span>+ Sales commission this month</span><span style="width:130px"><input class="in" style="text-align:right;padding:8px 10px" inputmode="decimal" value="${x.com || ''}" placeholder="0" onchange="setCommission('${s.id}','${m}',this.value)"></span></div>
     <div class="row tot"><span>Total earned</span><span class="r">${inr(x.total)}</span></div>
     <div class="row"><span>− Advances given</span><span class="r">${inr(x.adv)}</span></div>
     <div class="row"><span>− Salary paid</span><span class="r">${inr(x.paid)}</span></div>
     ${x.comPaid ? `<div class="row"><span>− Commission paid</span><span class="r">${inr(x.comPaid)}</span></div>` : ''}
     <div class="row tot"><span>${x.due >= 0 ? 'Balance to pay' : 'Overpaid'}</span><span class="r ${x.due > 0 ? 'neg' : 'pos'}">${inr(Math.abs(x.due))}</span></div>
   </div>
-  <div class="btn2"><button class="big alt small" onclick="go('form',{k:'advance',staff:'${s.id}',back:'staff'})">💵 Give advance</button><button class="big small" onclick="payBalance('${s.id}')">👛 Pay balance</button></div>
+  <div class="btn2"><button class="big alt small" onclick="go('form',{k:'advance',staff:'${s.id}',month:'${m}',back:'staff'})">💵 Give advance</button><button class="big small" onclick="go('form',{k:'salary',staff:'${s.id}',month:'${m}',amt:${Math.max(0, x.due)},back:'staff'})">👛 Pay balance</button></div>
   <div class="sec">Payments for ${monthName(m)}</div>
-  <div class="card">${txs.length ? txs.map(t => `<div class="item" onclick="go('form',{k:'${t.k}',id:'${t.id}',back:'staff'})"><div style="font-size:20px">${K[t.k].ic}</div><div class="t"><b>${K[t.k].l}</b><span>${fmtD(t.date)} · ${ACC[t.from]}${t.note ? ' · ' + esc(t.note) : ''}</span></div><div class="a">${inr(t.amt)}</div></div>`).join('') : '<div class="empty">No payments this month</div>'}</div>
+  <div class="card">${txs.length ? txs.map(t => `<div class="item" onclick="go('form',{k:'${t.k}',id:'${t.id}',back:'staff'})"><div style="font-size:20px">${kOf(t).ic}</div><div class="t"><b>${kOf(t).l}${pendPill(t)}</b><span>${fmtD(t.date)} · ${ACC[t.from] || ''}${t.note ? ' · ' + esc(t.note) : ''}</span></div><div class="a">${inr(t.amt)}</div></div>`).join('') : '<div class="empty">No payments this month</div>'}</div>
   <button class="big alt small" onclick="editStaff('${s.id}')">Edit ${esc(s.name)}</button>
   </main>`;
 };
-function payBalance(id) {
-  const s = S.staff.find(x => x.id === id); const x = staffMonth(s, staffMonthSel);
-  go('form', { k: 'salary', staff: id, back: 'staff' });
-  const a = document.getElementById('f_amt'); if (a && x.due > 0) a.value = x.due;
-  const mo = document.getElementById('f_month'); if (mo) mo.value = staffMonthSel;
-}
+function setCommission(id, m, v) { const c = { ...S.commission }; c[id + '|' + m] = num(v); commit({ t: 'set', key: 'commission', value: c }); render(); }
 function editStaff(id) {
   const s = id ? S.staff.find(x => x.id === id) : { name: '', salary: '' };
   const used = id && S.tx.some(t => t.staff === id);
@@ -674,16 +1010,16 @@ function editStaff(id) {
   <label class="f">Name</label><input class="in" id="m_name" value="${esc(s.name)}">
   <label class="f">Monthly salary</label><input class="in amt" inputmode="decimal" id="m_sal" value="${s.salary || ''}" placeholder="0">
   <div class="btn2" style="margin-top:14px"><button class="big alt small" onclick="closeModal()">Cancel</button><button class="big small" onclick="saveStaff('${id || ''}')">Save</button></div>
-  ${id && !used ? `<button class="big red small" onclick="S.staff=S.staff.filter(x=>x.id!=='${id}');save();closeModal();peopleTab='staff';go('people')">Delete staff</button>` : ''}`);
+  ${id && !used ? `<button class="big red small" onclick="commit({t:'delstaff',id:'${id}'});closeModal();peopleTab='staff';go('people')">Delete staff</button>` : ''}`);
 }
 function saveStaff(id) {
   const name = document.getElementById('m_name').value.trim(); if (!name) return toast('Enter name');
   const salary = num(document.getElementById('m_sal').value);
-  if (id) Object.assign(S.staff.find(x => x.id === id), { name, salary }); else S.staff.push({ id: uid(), name, salary });
-  save(); closeModal(); render(); toast('Saved');
+  commit({ t: 'staff', rec: { id: id || uid(), name, salary } });
+  closeModal(); render(); toast('Saved');
 }
 
-/* ----- Reports ----- */
+/* ----- Reports (owner) ----- */
 VIEWS.reports = () => {
   const m = repMonth; const P = periodData(m); const t = today();
   const td = S.days[t]; const L = P.L; const tl = L.days[t];
@@ -698,7 +1034,8 @@ VIEWS.reports = () => {
     <div class="row"><span>Shop expenses &amp; payments</span><span class="r">${inr(tExp)}</span></div>
     <div class="row"><span>Cash I took</span><span class="r">${inr(td.taken)}</span></div>
     <div class="row"><span>Closing cash in shop</span><span class="r">${inr(tl ? tl.close.shop : 0)}</span></div>
-    ${tl && tl.adj ? `<div class="row"><span>Cash ${tl.adj < 0 ? 'short' : 'extra'}</span><span class="r ${tl.adj < 0 ? 'neg' : 'pos'}">${inr(Math.abs(tl.adj))}</span></div>` : ''}`
+    ${tl && tl.adj ? `<div class="row"><span>Cash ${tl.adj < 0 ? 'short' : 'extra'}</span><span class="r ${tl.adj < 0 ? 'neg' : 'pos'}">${inr(Math.abs(tl.adj))}</span></div>` : ''}
+    ${td.status === 'pending' ? '<div class="hint">Entered by staff — not accepted yet.</div>' : ''}`
       : `<div class="muted">Today's shop entry not done yet.</div>`}
   </div>
   <div class="card"><label class="f" style="margin-top:0">Month for report</label>
@@ -738,7 +1075,7 @@ VIEWS.reports = () => {
   </main>`;
 };
 
-/* ----- History ----- */
+/* ----- History (owner) ----- */
 VIEWS.history = () => {
   const m = histMonth; const L = ledger();
   const txs = S.tx.filter(t => t.date.startsWith(m));
@@ -747,30 +1084,30 @@ VIEWS.history = () => {
   <main>
   <div class="card"><input class="in" type="month" value="${m}" onchange="if(this.value){histMonth=this.value;render()}"></div>
   ${dates.length ? dates.map(d => {
-    const day = S.days[d]; const dt = txs.filter(t => t.date === d).sort((a, b) => b.ts.localeCompare(a.ts));
+    const day = S.days[d]; const dt = txs.filter(t => t.date === d).sort((a, b) => (b.created || '').localeCompare(a.created || ''));
     return `<div class="sec">${fmtDshort(d)}</div><div class="card">
-    ${day ? `<div class="item" onclick="curDay='${d}';go('day')"><div style="font-size:22px">🏪</div><div class="t"><b>Shop day · Sales ${inr(day.sales)}</b><span>UPI ${inr(day.upi)} · Online ${inr(day.online)} · Taken ${inr(day.taken)}${L.days[d] ? ' · Closing ' + inr(L.days[d].close.shop) : ''}</span></div><div class="a">›</div></div>` : ''}
+    ${day ? `<div class="item" onclick="curDay='${d}';go('day')"><div style="font-size:22px">🏪</div><div class="t"><b>Shop day · Sales ${inr(day.sales)}${day.status === 'pending' ? ' <span class="pill b">Pending</span>' : ''}</b><span>UPI ${inr(day.upi)} · Online ${inr(day.online)} · Taken ${inr(day.taken)}${L.days[d] ? ' · Closing ' + inr(L.days[d].close.shop) : ''}${day.by === 'staff' ? ' · by staff' : ''}</span></div><div class="a">›</div></div>` : ''}
     ${dt.map(txItem).join('')}</div>`;
   }).join('') : '<div class="card empty">No entries this month</div>'}
   </main>`;
 };
 
-/* ----- Settings ----- */
+/* ----- Settings (owner) ----- */
 VIEWS.settings = () => {
-  const days = S.lastBackup ? new Date(S.lastBackup).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Never';
   return `${topbar('Settings', '', "go('home')")}
   <main>
-  <div class="sec">Backup — very important</div>
+  <div class="sec">Staff access</div>
   <div class="card">
-    <div class="muted" style="margin-bottom:10px">Records are kept only on this iPhone. Save a backup file every week (to Files / iCloud Drive, WhatsApp to yourself, or email). Last backup: <b>${days}</b></div>
-    <button class="big green small" onclick="backup()">💾 Backup now</button>
-    <button class="big alt small" onclick="document.getElementById('restoreFile').click()">📥 Restore from backup file</button>
-    <button class="big alt small" onclick="shareExcel('all')">📤 Share all data as Excel</button>
+    <div class="row"><span>Staff login</span><span class="r ${S.staffPinSet ? 'pos' : 'neg'}">${S.staffPinSet ? '✓ PIN set' : 'Not set'}</span></div>
+    ${S.staffName ? `<div class="row"><span>Staff name</span><span class="r">${esc(S.staffName)}</span></div>` : ''}
+    <button class="big small" style="margin-top:10px" onclick="staffPinModal()">${S.staffPinSet ? '🔑 Change staff PIN' : '🔑 Set staff PIN'}</button>
+    ${S.staffPinSet ? `<button class="big alt small" onclick="removeStaffPin()">Remove staff access</button>` : ''}
+    <div class="hint">Staff open the same link on their iPhone and enter the staff PIN. They only see Shop Day and past days.</div>
   </div>
   <div class="sec">Shop</div>
   <div class="card">
     <label class="f" style="margin-top:0">Shop name</label>
-    <input class="in" value="${esc(S.shop)}" onchange="S.shop=this.value.trim()||'Ain Vogue';save();toast('Saved')">
+    <input class="in" value="${esc(S.shop)}" onchange="commit({t:'set',key:'shop',value:this.value.trim()||'Ain Vogue'});toast('Saved')">
   </div>
   <div class="sec">Starting figures (on ${fmtD(S.start.date)})</div>
   <div class="card">
@@ -784,26 +1121,63 @@ VIEWS.settings = () => {
   </div>
   <div class="sec">Shop expense types</div>
   <div class="card">
-    ${S.expenseTypes.map((c, i) => `<div class="item"><div class="t"><b>${esc(c)}</b></div><button class="x" onclick="S.expenseTypes.splice(${i},1);save();render()">×</button></div>`).join('')}
+    ${S.expenseTypes.map((c, i) => `<div class="item"><div class="t"><b>${esc(c)}</b></div><button class="x" onclick="removeType(${i})">×</button></div>`).join('')}
     <button class="big alt small" style="margin-top:10px" onclick="newExpType('settings')">➕ Add type</button>
   </div>
-  <div class="sec">Security</div>
+  <div class="sec">Security &amp; data</div>
   <div class="card">
-    <button class="big alt small" onclick="changePin()">🔑 Change PIN</button>
-    <button class="big alt small" onclick="locked=true;render()">🔒 Lock now</button>
+    <div class="muted" style="margin-bottom:10px">All records are saved in your Google Sheet. ${esc(syncText())}</div>
+    <button class="big alt small" onclick="sync();toast('Refreshing…')">🔄 Refresh now</button>
+    <button class="big alt small" onclick="changePin()">🔑 Change my PIN</button>
+    <button class="big alt small" onclick="shareExcel('all')">📤 Share all data as Excel</button>
+    <button class="big alt small" onclick="backup()">💾 Save a backup file</button>
+    <button class="big alt small" onclick="lockNow()">🔒 Lock now</button>
   </div>
   <div class="sec">Danger zone</div>
-  <div class="card"><button class="big red small" onclick="forgotPin()">Erase all data</button></div>
-  <div class="muted" style="text-align:center;margin:10px 0">Ain Vogue Cash Book · v1.0</div>
+  <div class="card">
+    <button class="big red small" onclick="wipeModal()">Delete all records (start fresh)</button>
+    <button class="big alt small" onclick="signOut()">Sign out this phone</button>
+  </div>
+  <div class="muted" style="text-align:center;margin:10px 0">Ain Vogue Cash Book · v2.0</div>
   </main>`;
 };
+function removeType(i) { const list = S.expenseTypes.slice(); list.splice(i, 1); commit({ t: 'set', key: 'expenseTypes', value: list }); render(); }
 function saveStart() {
   const g = id => document.getElementById(id).value;
   const d = g('st_date') || S.start.date;
   const early = S.tx.some(t => t.date < d) || Object.keys(S.days).some(x => x < d);
   if (early) return toast('Some entries are before this date. Choose an earlier date.');
-  S.start = { date: d, shop: num(g('st_shop')), cash: num(g('st_cash')), bank: num(g('st_bank')), loan: num(g('st_loan')) };
-  save(); toast('Starting figures saved'); render();
+  commit({ t: 'set', key: 'start', value: { date: d, shop: num(g('st_shop')), cash: num(g('st_cash')), bank: num(g('st_bank')), loan: num(g('st_loan')) } });
+  toast('Starting figures saved'); render();
+}
+async function onlineOps(ops, okMsg) {
+  if (!PIN) return false;
+  try {
+    const r = await api({ a: 'sync', pin: PIN, ops: [...Q, ...ops] });
+    if (!r.ok) { toast(r.err || 'Failed'); return false; }
+    const mine = r.results.slice(Q.length); Q = []; S = normalize(r.state); D.last = Date.now(); persist();
+    const bad = mine.find(x => !x.ok); if (bad) { toast(bad.err); render(); return false; }
+    toast(okMsg); render(); return true;
+  } catch (e) { toast('Needs internet. Please try again when online.'); return false; }
+}
+function staffPinModal() {
+  modal(`<h2>Staff PIN</h2><p>Choose a 4-digit PIN for the shop staff. It must be different from your PIN.</p>
+  <label class="f">Staff name (optional)</label><input class="in" id="sp_name" value="${esc(S.staffName)}" placeholder="e.g. Kebi">
+  <label class="f">Staff PIN</label><input class="in amt" id="sp_pin" inputmode="numeric" maxlength="4" placeholder="4 digits" style="letter-spacing:8px">
+  <div class="btn2" style="margin-top:14px"><button class="big alt small" onclick="closeModal()">Cancel</button><button class="big small" onclick="saveStaffPin()">Save</button></div>`);
+}
+async function saveStaffPin() {
+  const pin = document.getElementById('sp_pin').value.trim(), name = document.getElementById('sp_name').value.trim();
+  if (!/^\d{4}$/.test(pin)) return toast('PIN must be 4 digits');
+  if (localHash(pin) === AUTH.hash) return toast('Must be different from your PIN');
+  closeModal();
+  await onlineOps([{ t: 'set', key: 'staffName', value: name }, { t: 'staffPin', pin }], 'Staff PIN saved ✓ Tell it to your staff.');
+}
+function removeStaffPin() { ask('Remove staff access?', 'The staff will not be able to open the app until you set a new staff PIN.', 'Remove', 'red', () => onlineOps([{ t: 'staffPin', pin: '' }], 'Staff access removed')); }
+function wipeModal() {
+  modal(`<h2>Delete all records?</h2><p>This deletes <b>all days, entries and requests</b> from the Google Sheet (suppliers and staff names stay). Use this only to remove test data before starting for real.</p>
+  <label class="f">Type ERASE to confirm</label><input class="in" id="eraseTxt" autocapitalize="characters">
+  <div class="btn2" style="margin-top:14px"><button class="big alt small" onclick="closeModal()">Cancel</button><button class="big red small" onclick="if(document.getElementById('eraseTxt').value.trim().toUpperCase()==='ERASE'){closeModal();onlineOps([{t:'wipe'}],'All records deleted')}else{toast('Type ERASE to confirm')}">Delete</button></div>`);
 }
 
 /* ---------- Share / backup ---------- */
@@ -819,24 +1193,8 @@ async function shareFile(name, blob, type) {
 }
 async function backup() {
   const data = JSON.stringify({ app: 'ainvogue-cashbook', exported: new Date().toISOString(), data: S });
-  const ok = await shareFile('AinVogue-backup-' + today() + '.json', new Blob([data], { type: 'application/json' }), 'application/json');
-  if (ok) { S.lastBackup = Date.now(); save(); render(); toast('Backup file created ✓'); }
+  if (await shareFile('AinVogue-backup-' + today() + '.json', new Blob([data], { type: 'application/json' }), 'application/json')) toast('Backup file created ✓');
 }
-document.getElementById('restoreFile').addEventListener('change', e => {
-  const f = e.target.files[0]; if (!f) return;
-  const rd = new FileReader();
-  rd.onload = () => {
-    try {
-      const j = JSON.parse(rd.result); const d = j.data || j;
-      if (!d || !d.start || !Array.isArray(d.tx)) throw new Error('bad');
-      ask('Restore this backup?', 'This will <b>replace everything</b> on this phone with the backup from ' + (j.exported ? new Date(j.exported).toLocaleString('en-IN') : 'the file') + '.', 'Restore', '', () => {
-        S = d; save(); locked = false; go('home'); toast('Backup restored ✓');
-      });
-    } catch (err) { toast('This is not a valid backup file'); }
-    e.target.value = '';
-  };
-  rd.readAsText(f);
-});
 
 /* ---------- Excel (.xlsx) writer, no internet needed ---------- */
 const CRC = (() => { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
@@ -914,7 +1272,7 @@ function excelData(m) {
   const ent = [[{ h: 'Date' }, { h: 'Type' }, { h: 'Expense type / Details' }, { h: 'Supplier / Staff' }, { h: 'Salary month' }, { h: 'From' }, { h: 'To' }, { h: 'Amount (₹)' }, { h: 'Note' }]];
   P.txs.slice().sort((a, b) => (a.date + a.ts).localeCompare(b.date + b.ts)).forEach(t => {
     const who = t.sup ? (S.suppliers.find(x => x.id === t.sup) || {}).name : t.staff ? (S.staff.find(x => x.id === t.staff) || {}).name : '';
-    ent.push([{ d: t.date }, K[t.k].l, t.cat || '', who || '', t.month ? monthName(t.month) : '', t.from ? ACC[t.from] : (t.k === 'credit_buy' ? 'Credit' : ''), t.to ? ACC[t.to] : '', num(t.amt), t.note || '']);
+    ent.push([{ d: t.date }, kOf(t).l, t.cat || '', who || '', t.month ? monthName(t.month) : '', t.from ? ACC[t.from] : (t.k === 'credit_buy' ? 'Credit' : ''), t.to ? ACC[t.to] : '', num(t.amt), t.note || '']);
   });
   // Suppliers
   const sup = [[{ h: 'Supplier' }, { h: 'Starting balance' }, { h: 'Credit purchases (all)' }, { h: 'Paid (all)' }, { h: 'Balance owed now' }, { h: 'Purchases in period' }, { h: 'Paid in period' }]];
@@ -940,8 +1298,10 @@ async function shareExcel(m) {
   await shareFile(name, blob, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 }
 
+
 /* ---------- start ---------- */
 if ('serviceWorker' in navigator && location.protocol === 'https:') { navigator.serviceWorker.register('sw.js').catch(() => { }); }
+if (AUTH) { locked = true; }
 render();
 </script>
 </body>
